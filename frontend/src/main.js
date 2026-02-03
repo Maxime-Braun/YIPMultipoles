@@ -6,20 +6,162 @@ window.THREE = THREE;
 window.OrbitControls = OrbitControls;
 
         // Modal Logic
-        const modal = document.getElementById("helpModal");
-        const btn = document.getElementById("helpLink");
-        const span = document.getElementsByClassName("close")[0];
+        const helpModal = document.getElementById("helpModal");
+        const helpBtn = document.getElementById("helpLink");
+        const helpClose = document.getElementById("helpModalClose");
 
-        btn.onclick = function(e) {
+        const cellParamsModal = document.getElementById("cellParamsModal");
+        const cellParamsClose = document.getElementById("cellParamsClose");
+        const cellParamsApplyBtn = document.getElementById("applyCellParamsBtn");
+        const cellParamsCancelBtn = document.getElementById("cancelCellParamsBtn");
+        const cellParamsMsg = document.getElementById("cellParamsMsg");
+        const cellParamsError = document.getElementById("cellParamsError");
+        const cellParamInputs = {
+          a: document.getElementById("cell_a"),
+          b: document.getElementById("cell_b"),
+          c: document.getElementById("cell_c"),
+          alpha: document.getElementById("cell_alpha"),
+          beta: document.getElementById("cell_beta"),
+          gamma: document.getElementById("cell_gamma")
+        };
+
+        let CURRENT_CELL_PARAM_SYSTEM = null;
+        const CUSTOM_CELL_PARAMS = {
+          triclinic: { a: 1, b: 1, c: 1, alpha: 90, beta: 90, gamma: 90 },
+          monoclinic: { a: 1.2, b: 1.0, c: 1.3, alpha: 90, beta: 110, gamma: 90 }
+        };
+  const CUSTOM_CELL_ENABLED = { triclinic: false, monoclinic: false };
+  let SUPPRESS_CELL_PARAM_MODAL_ONCE = false;
+
+        function showCellParamsError(msg) {
+          if (!cellParamsError) return;
+          cellParamsError.textContent = msg;
+          cellParamsError.style.display = msg ? "block" : "none";
+        }
+
+        function readCellParamsFromInputs() {
+          return {
+            a: parseFloat(cellParamInputs.a?.value),
+            b: parseFloat(cellParamInputs.b?.value),
+            c: parseFloat(cellParamInputs.c?.value),
+            alpha: parseFloat(cellParamInputs.alpha?.value),
+            beta: parseFloat(cellParamInputs.beta?.value),
+            gamma: parseFloat(cellParamInputs.gamma?.value)
+          };
+        }
+
+        function validateCellParams(params) {
+          const vals = Object.values(params);
+          if (vals.some(v => !isFinite(v))) {
+            return "Please enter numeric values for all cell parameters.";
+          }
+          if (params.a <= 0 || params.b <= 0 || params.c <= 0) {
+            return "Cell lengths must be positive.";
+          }
+          if (params.alpha <= 0 || params.beta <= 0 || params.gamma <= 0 ||
+              params.alpha >= 180 || params.beta >= 180 || params.gamma >= 180) {
+            return "Angles must be between 0° and 180° (exclusive).";
+          }
+          const gammaRad = params.gamma * Math.PI / 180;
+          if (Math.abs(Math.sin(gammaRad)) < 1e-6) {
+            return "Gamma angle cannot be 0° or 180° for a valid basis.";
+          }
+          return null;
+        }
+
+        function setCellParamInputs(system) {
+          const base = CUSTOM_CELL_PARAMS[system] || { a: 1, b: 1, c: 1, alpha: 90, beta: 90, gamma: 90 };
+          if (cellParamInputs.a) cellParamInputs.a.value = base.a;
+          if (cellParamInputs.b) cellParamInputs.b.value = base.b;
+          if (cellParamInputs.c) cellParamInputs.c.value = base.c;
+          if (cellParamInputs.alpha) cellParamInputs.alpha.value = base.alpha;
+          if (cellParamInputs.beta) cellParamInputs.beta.value = base.beta;
+          if (cellParamInputs.gamma) cellParamInputs.gamma.value = base.gamma;
+        }
+
+        function openCellParamsModal(system) {
+          if (!cellParamsModal) return;
+          CURRENT_CELL_PARAM_SYSTEM = system;
+          if (cellParamsMsg) {
+            cellParamsMsg.textContent = system === "monoclinic"
+              ? "Monoclinic system detected. Enter lattice parameters (α, γ typically 90°)."
+              : "Triclinic system detected. Enter full lattice parameters.";
+          }
+          setCellParamInputs(system);
+          showCellParamsError("");
+          cellParamsModal.style.display = "block";
+        }
+
+        function closeCellParamsModal() {
+          if (!cellParamsModal) return;
+          cellParamsModal.style.display = "none";
+          showCellParamsError("");
+        }
+
+        function maybeOpenCellParamsModal(system) {
+          if (system !== "triclinic" && system !== "monoclinic") return;
+          if (SUPPRESS_CELL_PARAM_MODAL_ONCE) {
+            SUPPRESS_CELL_PARAM_MODAL_ONCE = false;
+            return;
+          }
+          if (cellParamsModal && cellParamsModal.style.display === "block") return;
+          openCellParamsModal(system);
+        }
+
+        function applyCellParams(system, params) {
+          CUSTOM_CELL_PARAMS[system] = { ...params };
+          CUSTOM_CELL_ENABLED[system] = true;
+          if (currentGroup && currentGroup.name) {
+            SUPPRESS_CELL_PARAM_MODAL_ONCE = true;
+            setUnitCellFromGroupName(currentGroup.name);
+          }
+          closeCellParamsModal();
+        }
+
+        helpBtn.onclick = function(e) {
             e.preventDefault();
-            modal.style.display = "block";
+            helpModal.style.display = "block";
         }
-        span.onclick = function() {
-            modal.style.display = "none";
+        helpClose.onclick = function() {
+            helpModal.style.display = "none";
         }
+
+        if (cellParamsClose) {
+          cellParamsClose.onclick = function() {
+            closeCellParamsModal();
+          }
+        }
+        if (cellParamsCancelBtn) {
+          cellParamsCancelBtn.onclick = function() {
+            if (CURRENT_CELL_PARAM_SYSTEM) {
+              CUSTOM_CELL_ENABLED[CURRENT_CELL_PARAM_SYSTEM] = false;
+              if (currentGroup && currentGroup.name) {
+                SUPPRESS_CELL_PARAM_MODAL_ONCE = true;
+                setUnitCellFromGroupName(currentGroup.name);
+              }
+            }
+            closeCellParamsModal();
+          }
+        }
+        if (cellParamsApplyBtn) {
+          cellParamsApplyBtn.onclick = function() {
+            if (!CURRENT_CELL_PARAM_SYSTEM) return;
+            const params = readCellParamsFromInputs();
+            const err = validateCellParams(params);
+            if (err) {
+              showCellParamsError(err);
+              return;
+            }
+            applyCellParams(CURRENT_CELL_PARAM_SYSTEM, params);
+          }
+        }
+
         window.onclick = function(event) {
-            if (event.target == modal) {
-                modal.style.display = "none";
+            if (event.target == helpModal) {
+                helpModal.style.display = "none";
+            }
+      if (event.target == cellParamsModal) {
+        closeCellParamsModal();
             }
         }
 // ==================== Tensor Ylm state ====================
@@ -2942,8 +3084,59 @@ function crystalSystemFromSGNumber(n) {
   if (n >= 168 && n <= 194) return "hexagonal";
   return "cubic";
 }
+function latticeBasisFromParams(params) {
+  const deg = Math.PI / 180;
+  const a = params.a;
+  const b = params.b;
+  const c = params.c;
+  const alpha = params.alpha * deg;
+  const beta = params.beta * deg;
+  const gamma = params.gamma * deg;
+
+  const cosAlpha = Math.cos(alpha);
+  const cosBeta = Math.cos(beta);
+  const cosGamma = Math.cos(gamma);
+  const sinGamma = Math.sin(gamma);
+
+  if (Math.abs(sinGamma) < 1e-6) return null;
+
+  const aVec = [a, 0, 0];
+  const bVec = [b * cosGamma, b * sinGamma, 0];
+  const cX = c * cosBeta;
+  const cY = c * (cosAlpha - cosBeta * cosGamma) / sinGamma;
+  const cZSq = Math.max(c * c - cX * cX - cY * cY, 0);
+  const cZ = Math.sqrt(cZSq);
+
+  const cVec = [cX, cY, cZ];
+
+  const cross = [
+    bVec[1] * cVec[2] - bVec[2] * cVec[1],
+    bVec[2] * cVec[0] - bVec[0] * cVec[2],
+    bVec[0] * cVec[1] - bVec[1] * cVec[0]
+  ];
+  const volume = Math.abs(aVec[0] * cross[0] + aVec[1] * cross[1] + aVec[2] * cross[2]);
+  if (volume > 0) {
+    const scale = Math.pow(1 / volume, 1 / 3);
+    return {
+      a: aVec.map(v => v * scale),
+      b: bVec.map(v => v * scale),
+      c: cVec.map(v => v * scale)
+    };
+  }
+
+  return { a: aVec, b: bVec, c: cVec };
+}
 function getCellBasis(system) {
   let a = [1, 0, 0], b = [0, 1, 0], c = [0, 0, 1];
+
+  if ((system === "triclinic" || system === "monoclinic") &&
+      CUSTOM_CELL_ENABLED && CUSTOM_CELL_ENABLED[system]) {
+    const custom = CUSTOM_CELL_PARAMS && CUSTOM_CELL_PARAMS[system];
+    if (custom) {
+      const basis = latticeBasisFromParams(custom);
+      if (basis) return basis;
+    }
+  }
 
   if (system === "tetragonal") {
     c = [0, 0, 1.4];
@@ -3045,19 +3238,23 @@ function clearCellWireframe() {
 
 function setUnitCellFromGroupName(groupName) {
   // viewer not ready yet -> remember request
+  const major = parseBNSNumberMajor(groupName);
+  const system = crystalSystemFromSGNumber(major);
   if (!scene3d) {
     __PENDING_UNITCELL_NAME = groupName;
+    maybeOpenCellParamsModal(system);
     return;
   }
   __PENDING_UNITCELL_NAME = null;
 
   clearCellWireframe();
-  const major = parseBNSNumberMajor(groupName);
-  const system = crystalSystemFromSGNumber(major);
-  CELL_BASIS = getCellBasis(system);
   cellWireframe3d = buildCellWireframe(system);
   scene3d.add(cellWireframe3d);
   addCrystalAxes({ scale: 0.45 });
+  maybeOpenCellParamsModal(system);
+  if (_lastOrbitForTensor) {
+    renderTensorIsosurfacesFromSiteTensor(_lastOrbitForTensor);
+  }
 }
 function resetTensorStateForNewPosition() {
   resetTensorSliderMemory();   // clears TV_STATE + ALLOWED_HARM_CACHE
