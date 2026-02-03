@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import math
 import re
+import numpy as np
 
 
 # --------------------------
@@ -70,33 +71,8 @@ def matrix_equal(A: Sequence[Sequence[float]], B: Sequence[Sequence[float]], eps
                 return False
     return True
 
-def det3x3(M: Sequence[Sequence[float]]) -> float:
-    return (
-        M[0][0]*(M[1][1]*M[2][2] - M[1][2]*M[2][1])
-        - M[0][1]*(M[1][0]*M[2][2] - M[1][2]*M[2][0])
-        + M[0][2]*(M[1][0]*M[2][1] - M[1][1]*M[2][0])
-    )
-
-def invert_matrix3x3(M: Sequence[Sequence[float]], eps: float = 1e-12) -> Optional[Mat3]:
-    d = det3x3(M)
-    if abs(d) < eps:
-        return None
-    invd = 1.0 / d
-    return [
-        [(M[1][1]*M[2][2] - M[1][2]*M[2][1]) * invd,
-         (M[0][2]*M[2][1] - M[0][1]*M[2][2]) * invd,
-         (M[0][1]*M[1][2] - M[0][2]*M[1][1]) * invd],
-        [(M[1][2]*M[2][0] - M[1][0]*M[2][2]) * invd,
-         (M[0][0]*M[2][2] - M[0][2]*M[2][0]) * invd,
-         (M[0][2]*M[1][0] - M[0][0]*M[1][2]) * invd],
-        [(M[1][0]*M[2][1] - M[1][1]*M[2][0]) * invd,
-         (M[0][1]*M[2][0] - M[0][0]*M[2][1]) * invd,
-         (M[0][0]*M[1][1] - M[0][1]*M[1][0]) * invd],
-    ]
-
-
 # --------------------------
-# Tensor invariance solver
+# Tensor invariance solver (NumPy Accelerated)
 # --------------------------
 
 @dataclass(frozen=True)
@@ -104,146 +80,158 @@ class Op:
     R: Mat3
     tr: int = 1  # time reversal factor (±1). Defaults to +1.
 
-def _row_echelon_add(ref_rows: List[Optional[List[float]]], eq: List[float], eps: float = 1e-6) -> None:
-    """
-    Mirrors the JS incremental row-echelon insertion:
-    - ref_rows[col] stores a pivot row with leading 1 at column col.
-    """
-    dim = len(eq)
-    for col in range(dim):
-        if abs(eq[col]) > eps:
-            if ref_rows[col] is not None:
-                pivot = ref_rows[col]
-                if pivot is None:
-                    continue
-                factor = eq[col]
-                # eliminate col
-                for k in range(col, dim):
-                    eq[k] -= factor * pivot[k]
-            else:
-                factor = eq[col]
-                for k in range(col, dim):
-                    eq[k] /= factor
-                ref_rows[col] = eq
-                return
-
 def compute_multipoles(
     rank: int,
     ops: Sequence[Op],
     multipole_mode: str = "magnetic",
 ) -> List[List[float]]:
     """
-    Returns a basis of invariant tensors in the *crystal/fractional* basis.
-
+    Returns a basis of invariant tensors in the *crystal/fractional* basis using SVD.
+    Now NumPy accelerated for efficiency.
     Output: list of basis vectors of length 3**rank (flattened in base-3 index order).
     """
     if rank < 1:
         return []
 
     dim = 3 ** rank
-    ref_rows: List[Optional[List[float]]] = [None] * dim
-
-    # 1) Intrinsic symmetry: for rank>=3, enforce symmetry of last (rank-1) indices
-    # matching the JS behaviour.
-    # 1) Intrinsic symmetry (EXACT old HTML logic):
-    # Only add swap-equations when the adjacent pair is "out of order".
+    
+    constraints = []
+    
+    # 1. Intrinsic symmetry (for rank>=3, enforce symmetry of last rank-1 indices)
+    # This matches the legacy behaviour.
+    # Note: The logic below creates constraint rows for permutations.
     if rank >= 3:
+        # We need to enforce T_{...i j ...} = T_{...j i ...} 
+        # specifically for the last (rank-1) indices as per original logic.
+        # Original logic: "Only add swap-equations when the adjacent pair is out of order" 
+        # over the last (rank-1) dimensions.
+        
+        # We can construct a projector or just direct constraints. 
+        # Direct constraints are simpler for SVD.
+        
+        # We iterate over all indices of the LAST (rank-1) part.
         sub_rank = rank - 1
         sub_dim = 3 ** sub_rank
+        
+        # We need to link the full tensor index to the sub_rank index
+        # Full index u = i0 * sub_dim + flat_sub
+        
+        # Let's generate the permutations for the sub-tensor
+        # Vectorized approach:
+        # Create an array of indices [0, ..., sub_dim-1]
+        # Convert to digits
+        # Check if sorted? No, we need explicit swap constraints.
+        
+        # For efficiency, we only generate constraints for adjacent swaps.
+        # But for full symmetry of size K, we need K-1 adjacent swaps.
+        # Here we need full symmetry of the sub-tensor? 
+        # The original code checked specific adjacent pairs.
+        
+        # Let's re-implement the exact logic but using numpy construction
+        for k in range(sub_rank - 1):
+            # We want to enforce symmetry between index k and k+1 (0-based relative to sub-tensor)
+            # These correspond to indices rank-sub_rank+k and rank-sub_rank+k+1 in the full tensor
+            # i.e., indices 1+k and 1+k+1 if sub_rank = rank-1.
+            
+            # We build a permutation map.
+            # Grid of indices (3, 3, ..., 3) [rank times]
+            # We want P where P applies swap to axes.
+            
+            # The original code loops over i0 (first index) 
+            # and then enforces symmetry on the rest.
+            
+            # Let's construct a sparse constraint matrix for this.
+            # Or simpler:
+            # Identity map
+            indices = np.arange(dim).reshape([3] * rank)
+            
+            # Swapped map: swap axes (1+k) and (1+k+1)
+            # The axes of `indices` are 0, 1, ..., rank-1.
+            # The sub-tensor starts at axis 1.
+            # So we swap axis 1+k and 1+k+1.
+            
+            axis_a = 1 + k
+            axis_b = 1 + k + 1
+            
+            swapped_indices = np.swapaxes(indices, axis_a, axis_b).flatten()
+            base_indices = indices.flatten()
+            
+            # Constraint: v[i] - v[swap(i)] = 0
+            # We only need to do this for i < swap(i) to avoid duplicates
+            mask = base_indices < swapped_indices
+            
+            if np.any(mask):
+                # Rows: v[idx] - v[swapped_idx] = 0
+                rows = base_indices[mask]
+                cols_sub = swapped_indices[mask]
+                
+                # We can't easily append generic rows to a list if we want speed.
+                # But building discrete rows for SVD is what we need.
+                # Actually, SVD on (P - I) is better? No, P v = v.
+                # So (P - I) v = 0.
+                
+                # Construct linear operator for (P - I)
+                # It is a permutation matrix minus identity.
+                # We don't need the full matrix.
+                # Just the rows where they differ.
+                
+                # Or simply:
+                # For each relevant swap, add P - I to constraints?
+                # That is dim x dim. Too big if we stack many.
+                # But we only need independent constraints.
+                
+                # Let's just accumulate the operator (P - I)
+                # P_op = np.eye(dim)[swapped_indices] # This is huge (243x243 for rank 5)
+                # Actually 243x243 is small for SVD. (243^2 = 59000 floats).
+                # Even rank 5 (243 dim) is small.
+                # Rank 6 (729) is still okay.
+                
+                # So we can just construct the full matrix.
+                I = np.eye(dim)
+                P_mat = np.eye(dim)[swapped_indices]
+                constraints.append(P_mat - I)
 
-        for i0 in range(3):
-            offset = i0 * sub_dim
-
-            for flat in range(sub_dim):
-                # decode flat -> indices (length sub_rank)
-                indices = []
-                tmp = flat
-                for _ in range(sub_rank):
-                    indices.insert(0, tmp % 3)
-                    tmp //= 3
-
-                for k in range(sub_rank - 1):
-                    # ✅ THIS LINE IS THE MISSING PART
-                    if indices[k] <= indices[k + 1]:
-                        continue
-
-                    swapped = indices[:]
-                    swapped[k], swapped[k + 1] = swapped[k + 1], swapped[k]
-
-                    flat_swapped = 0
-                    for r in range(sub_rank):
-                        flat_swapped = flat_swapped * 3 + swapped[r]
-
-                    eq = [0.0] * dim
-                    eq[offset + flat] = 1.0
-                    eq[offset + flat_swapped] = -1.0
-                    _row_echelon_add(ref_rows, eq)
-
-
-
-
-    # strides (reverse) as in JS
-    strides = []
-    s = 1
-    for _ in range(rank):
-        strides.append(s)
-        s *= 3
-    strides.reverse()
-
-    # 2) Neumann principle equations: T = factor * R ⊗ ... ⊗ R (applied) * T
+    # 2. Symmetry constraints: (factor * R_kron - I) v = 0
+    I = np.eye(dim)
     for op in ops:
-        detR = det3x3(op.R)
+        detR = np.linalg.det(op.R)
         factor = (op.tr * detR) if multipole_mode == "magnetic" else 1.0
-
-        for u in range(dim):
-            # decode u -> i_indices length rank
-            i_indices = []
-            tmp = u
-            for _ in range(rank):
-                i_indices.insert(0, tmp % 3)
-                tmp //= 3
-
-            eq = [0.0] * dim
-            eq[u] += 1.0
-
-            def add_term(depth: int, current_flat_idx: int, current_coeff: float) -> None:
-                if depth == rank:
-                    eq[current_flat_idx] -= factor * current_coeff
-                    return
-                i_k = i_indices[depth]
-                for j_k in range(3):
-                    r_val = op.R[i_k][j_k]
-                    if abs(r_val) > 1e-9:
-                        next_flat = current_flat_idx + j_k * strides[depth]
-                        add_term(depth + 1, next_flat, current_coeff * r_val)
-
-            add_term(0, 0, 1.0)
-            _row_echelon_add(ref_rows, eq)
-
-    # 3) Null-space basis: free columns become basis vectors, back-substitute
-    free_cols = [c for c in range(dim) if ref_rows[c] is None]
-    basis: List[List[float]] = []
-
-    for fcol in free_cols:
-        sol = [0.0] * dim
-        sol[fcol] = 1.0
-
-        for c in range(dim - 1, -1, -1):
-            row = ref_rows[c]
-            if row is None:
-                continue
-            ssum = 0.0
-            for k in range(c + 1, dim):
-                ssum += row[k] * sol[k]
-            sol[c] = -ssum
-
-        # normalize
-        norm = math.sqrt(sum(v*v for v in sol))
-        if norm > 1e-9:
-            sol = [v / norm for v in sol]
-            basis.append(sol)
-
+        
+        # Build Kronecker product R ⊗ ... ⊗ R
+        # Use recursive kron or reduce
+        M_op = np.array(op.R)
+        for _ in range(rank - 1):
+            M_op = np.kron(M_op, np.array(op.R))
+            
+        # Add constraint (factor * M_op - I) v = 0
+        C = (factor * M_op) - I
+        constraints.append(C)
+        
+    if not constraints:
+        return np.eye(dim).tolist()
+        
+    # Stack all constraints
+    A = np.vstack(constraints)
+    
+    # Solve A v = 0 using SVD
+    # A is (N_constraints * dim) x dim
+    U, S, Vh = np.linalg.svd(A)
+    
+    # Null space corresponds to singular values ~ 0
+    tol = 1e-9
+    basis = []
+    
+    # Vh rows are the eigenvectors
+    # The last rows correspond to smallest singular values
+    for i in range(dim):
+        if S[i] < tol:
+            basis.append(Vh[i].tolist())
+            
+    # Sort or normalize?
+    # Original logic normalizes.
+    # The vectors from SVD are already normalized.
     return basis
+
 
 
 # --------------------------

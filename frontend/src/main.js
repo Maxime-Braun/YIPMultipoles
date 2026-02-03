@@ -222,10 +222,6 @@ function ensureSpinButtons() {
       // set all sliders for the current rank/spin to zero
       const rank = getSelectedRank();
       if (rank) {
-        const key = `${rank}_s${ACTIVE_SPIN}`;
-        if (TV_STATE[key]) {
-          TV_STATE[key].weights = TV_STATE[key].weights.map(() => 0);
-        }
         if (GLOBAL_BASIS_COEFFS[rank]) {
           GLOBAL_BASIS_COEFFS[rank] = GLOBAL_BASIS_COEFFS[rank].map(() => 0);
         }
@@ -239,10 +235,9 @@ function ensureSpinButtons() {
       });
 
       if (rank) {
-        const key = `${rank}_s${ACTIVE_SPIN}`;
-        const st = TV_STATE[key];
-        if (st && st.harmonics) {
-          scheduleIsoRender(rank, st.harmonics, st.weights);
+        const basis = getBasisForRank(rank);
+        if (basis && basis.length) {
+          scheduleIsoRender(rank, basis, ACTIVE_SPIN);
         } else {
           updateOrbitViewer();
         }
@@ -2956,14 +2951,10 @@ function getCellBasis(system) {
     a = [1.2, 0, 0];
     b = [0, 0.8, 0];
     c = [0, 0, 1.4];
-  } else if (system === "hexagonal") {
+  } else if (system === "hexagonal" || system === "trigonal") {
     a = [1, 0, 0];
     b = [-0.5, Math.sqrt(3)/2, 0];
     c = [0, 0, 1.4];
-  } else if (system === "trigonal") {
-    a = [1, 0, 0];
-    b = [0.6, 0.9, 0];
-    c = [0.2, 0.15, 1.2];
   } else if (system === "monoclinic") {
     a = [1.2, 0, 0];
     b = [0, 1.0, 0];
@@ -2982,31 +2973,10 @@ function buildCellWireframe(system) {
   const V = [];
   const addEdge = (a, b) => { V.push(...a, ...b); };
 
-  let a = [1, 0, 0], b = [0, 1, 0], c = [0, 0, 1];
+  // Use the shared helper to ensure consistency
+  let { a, b, c } = getCellBasis(system);
 
-  if (system === "tetragonal") {
-    c = [0, 0, 1.4];
-  } else if (system === "orthorhombic") {
-    a = [1.2, 0, 0];
-    b = [0, 0.8, 0];
-    c = [0, 0, 1.4];
-  } else if (system === "hexagonal") {
-    a = [1, 0, 0];
-    b = [-0.5, Math.sqrt(3) / 2, 0];
-    c = [0, 0, 1.4];
-  } else if (system === "trigonal") {
-    a = [1, 0, 0];
-    b = [0.6, 0.9, 0];
-    c = [0.2, 0.15, 1.2];
-  } else if (system === "monoclinic") {
-    a = [1.2, 0, 0];
-    b = [0, 1.0, 0];
-    c = [0.35, 0, 1.3];
-  } else if (system === "triclinic") {
-    a = [1.1, 0.1, 0];
-    b = [0.2, 0.95, 0.1];
-    c = [0.3, 0.2, 1.1];
-  }
+  // (Removed duplicated if/else logic here)
 
   const O  = [0, 0, 0];
   const A  = a;
@@ -3038,16 +3008,24 @@ function buildCellWireframe(system) {
 // Build P such that: W(harmonics) = P * c(basis coeffs)
 // P has shape (nHarm x nBasis)
 function buildBasisToHarmonicMatrix(fullRank, basis, spinIndex, harmonics) {
-  const spatialRank = fullRank - 1;
   const nH = harmonics.length;
   const nB = basis.length;
   const P = Array.from({length:nH}, () => Array(nB).fill(0));
 
   for (let b = 0; b < nB; b++) {
-    const spatial = sliceSpinComponent(basis[b], fullRank, spinIndex);
+    const { spatialRank, spatialTensor } = getSpatialTensorForProjection(
+      fullRank,
+      spinIndex,
+      basis[b],
+      (CELL_BASIS && CELL_BASIS.a) ? [
+        [CELL_BASIS.a[0], CELL_BASIS.b[0], CELL_BASIS.c[0]],
+        [CELL_BASIS.a[1], CELL_BASIS.b[1], CELL_BASIS.c[1]],
+        [CELL_BASIS.a[2], CELL_BASIS.b[2], CELL_BASIS.c[2]]
+      ] : [[1,0,0],[0,1,0],[0,0,1]]
+    );
     const w = projectTensorToSpecificHarmonics(
       spatialRank,
-      new Float64Array(spatial),
+      new Float64Array(spatialTensor),
       harmonics,
       { Nth: PROJ_NTH, Nph: PROJ_NPH }
     );
@@ -3250,6 +3228,7 @@ function expandOrbitForViewer(orbit) {
 
       out.push({
         ...atom,
+        originalIndex: i,
         coord: pu,                 // unwrapped (matches sphere placement)
         shift: [dx, dy, dz],
         isGhost
@@ -3399,6 +3378,22 @@ function transformSpatialTensorToCartesian(tensorFlat, rank, M) {
   }
 
   return out;
+}
+
+// Derive the spatial tensor used for harmonic projection.
+// For spatialRank=0, compute the cartesian component (Mx/My/Mz) from the full rank-1 tensor.
+function getSpatialTensorForProjection(fullRank, spin, tensorFlat, M) {
+  // Generic handling: Transform the full tensor from Fractional to Cartesian first.
+  // This ensures that when we slice by 'spin', we are selecting Cartesian components (x,y,z)
+  // rather than Fractional components (a,b,c).
+  // This is crucial for non-cubic systems where fractional components do not correspond to orthogonal axes.
+  const cartTensor = transformSpatialTensorToCartesian(tensorFlat, fullRank, M);
+
+  // After transforming, the first index (spin) corresponds to Cartesian X, Y, Z.
+  const spatialCart = sliceSpinComponent(cartTensor, fullRank, spin);
+  
+  const spatialRank = Math.max(0, fullRank - 1);
+  return { spatialRank, spatialTensor: spatialCart };
 }
 
 function near(a, b, eps) { return Math.abs(a - b) < eps; }
@@ -3674,11 +3669,11 @@ const PROJ_NTH = 36;
 const PROJ_NPH = 72;
 
 let _isoRenderHandle = null;
-function scheduleIsoRender(rank, harmonics, weights, spin = ACTIVE_SPIN) {
+function scheduleIsoRender(rank, basis, spin = ACTIVE_SPIN) {
   if (_isoRenderHandle) cancelAnimationFrame(_isoRenderHandle);
   _isoRenderHandle = requestAnimationFrame(() => {
     _isoRenderHandle = null;
-    renderTensorIsosurfacesFromHarmonics(rank, harmonics, weights, spin);
+    renderTensorIsosurfacesFromHarmonics(rank, basis, spin);
   });
 }
 // Uses projectTensorToRealYlmLocal() which must implement the SAME convention as tensor_visualizer_copy.html:
@@ -3750,48 +3745,21 @@ window.projectTensorToRealYlmLocal = function projectTensorToRealYlmLocal(rank, 
   const eps = opts.eps ?? 1e-4;
   const Nth = opts.Nth ?? PROJ_NTH;
   const Nph = opts.Nph ?? PROJ_NPH;
+  const lMin = Number.isFinite(opts.lMin) ? opts.lMin : 0;
+  const lMax = Number.isFinite(opts.lMax) ? opts.lMax : rank;
 
-  // Scan all harmonics l = 0..rank
+  // Scan harmonics l = lMin..lMax
   const harmonics = [];
-  for (let l = 0; l <= rank; l++) {
+  for (let l = lMin; l <= lMax; l++) {
     for (let m = -l; m <= l; m++) harmonics.push([l, m]);
   }
 
-  const weights = new Array(harmonics.length).fill(0);
-
-  // === EXACT tensor_visualizer grid === (midpoint theta)
-  const RES_THETA = Nth;
-  const RES_PHI   = Nph;
-  const dPhi   = (2 * Math.PI) / RES_PHI;
-  const dTheta = Math.PI / RES_THETA;
-
-  // ---- IMPORTANT: loop over harmonics (you are missing this right now) ----
-  for (let h = 0; h < harmonics.length; h++) {
-    const [l, m] = harmonics[h];
-    let integ = 0;
-
-    for (let t = 0; t < RES_THETA; t++) {
-      const theta = (t + 0.5) * dTheta;   // midpoint
-      const sinT = Math.sin(theta);
-      const cosT = Math.cos(theta);
-      const dOmega = sinT * dTheta * dPhi;
-
-      for (let p = 0; p < RES_PHI; p++) {
-        const phi = p * dPhi;
-
-        const nx = sinT * Math.cos(phi);
-        const ny = sinT * Math.sin(phi);
-        const nz = cosT;
-
-        const field = window._evalTensorOnDir(tensorFlat, rank, nx, ny, nz);
-        const ylm = getRealYlm(l, m, theta, phi);
-
-        integ += field * ylm * dOmega;
-      }
-    }
-
-    weights[h] = integ;
-  }
+  const weights = solveHarmonicWeightsByScalarProduct(
+    rank,
+    tensorFlat,
+    harmonics,
+    { Nth, Nph }
+  );
 
   // Filter zeros to reduce sliders (same eps logic)
   const outH = [];
@@ -3806,57 +3774,233 @@ window.projectTensorToRealYlmLocal = function projectTensorToRealYlmLocal(rank, 
   return { harmonics: outH, weights: outW };
 };
 
+// Compute harmonic weights using a scalar-product-aware fit (normal equations)
+// to account for non-orthogonality introduced by finite sampling.
+function solveHarmonicWeightsByScalarProduct(rank, tensorFlat, harmonics, opts = {}) {
+  const Nth = opts.Nth ?? PROJ_NTH;
+  const Nph = opts.Nph ?? PROJ_NPH;
+  const nH = harmonics.length;
+
+  if (nH === 0) return [];
+
+  const rhs = new Array(nH).fill(0);
+  const gram = Array.from({ length: nH }, () => new Array(nH).fill(0));
+
+  const RES_THETA = Nth;
+  const RES_PHI   = Nph;
+  const dPhi   = (2 * Math.PI) / RES_PHI;
+  const dTheta = Math.PI / RES_THETA;
+
+  for (let t = 0; t < RES_THETA; t++) {
+    const theta = (t + 0.5) * dTheta;
+    const sinT = Math.sin(theta);
+    const cosT = Math.cos(theta);
+    const dOmega = sinT * dTheta * dPhi;
+
+    for (let p = 0; p < RES_PHI; p++) {
+      const phi = p * dPhi;
+
+      const nx = sinT * Math.cos(phi);
+      const ny = sinT * Math.sin(phi);
+      const nz = cosT;
+
+      const field = window._evalTensorOnDir(tensorFlat, rank, nx, ny, nz);
+
+      const y = new Array(nH);
+      for (let h = 0; h < nH; h++) {
+        const [l, m] = harmonics[h];
+        y[h] = getRealYlm(l, m, theta, phi);
+      }
+
+      for (let i = 0; i < nH; i++) {
+        rhs[i] += field * y[i] * dOmega;
+        for (let j = 0; j < nH; j++) {
+          gram[i][j] += y[i] * y[j] * dOmega;
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < nH; i++) gram[i][i] += 1e-8;
+
+  try {
+    const inv = invertMatrixN(gram);
+    return matVec(inv, rhs);
+  } catch (e) {
+    console.warn("Harmonic fit failed, falling back to raw inner products.", e);
+    return rhs;
+  }
+}
+
 // Cache: per (fullRank, spin) store allowed harmonics for the whole tensor space
 const ALLOWED_HARM_CACHE = {}; // key -> [[l,m],...]
+const WIGNER_ROT_CACHE = new Map();
 
 function _hmKey(l, m) { return `${l},${m}`; }
+
+function buildFullHarmonics(maxL) {
+  const out = [];
+  for (let l = 0; l <= maxL; l++) {
+    for (let m = -l; m <= l; m++) out.push([l, m]);
+  }
+  return out;
+}
+
+function filterHarmonicsByWeight(harmonics, weights, eps = 1e-6) {
+  const outH = [];
+  const outW = [];
+  for (let i = 0; i < harmonics.length; i++) {
+    if (Math.abs(weights[i]) > eps) {
+      outH.push(harmonics[i]);
+      outW.push(weights[i]);
+    }
+  }
+  return { harmonics: outH, weights: outW };
+}
+
+function realYlmVector(l, theta, phi) {
+  const vec = [];
+  for (let m = -l; m <= l; m++) vec.push(getRealYlm(l, m, theta, phi));
+  return vec;
+}
+
+function rotateDirection(R, v) {
+  return [
+    R[0][0] * v[0] + R[0][1] * v[1] + R[0][2] * v[2],
+    R[1][0] * v[0] + R[1][1] * v[1] + R[1][2] * v[2],
+    R[2][0] * v[0] + R[2][1] * v[1] + R[2][2] * v[2]
+  ];
+}
+
+function cartRotationMatrixFromFrac(R) {
+  if (!R) return [[1,0,0],[0,1,0],[0,0,1]];
+  const { a, b, c } = CELL_BASIS || { a:[1,0,0], b:[0,1,0], c:[0,0,1] };
+  const B = new THREE.Matrix3().set(
+    a[0], b[0], c[0],
+    a[1], b[1], c[1],
+    a[2], b[2], c[2]
+  );
+  const Binv = B.clone();
+  if (Math.abs(Binv.determinant()) < 1e-12) return [[1,0,0],[0,1,0],[0,0,1]];
+  Binv.invert();
+
+  const Rf = new THREE.Matrix3().set(
+    R[0][0], R[0][1], R[0][2],
+    R[1][0], R[1][1], R[1][2],
+    R[2][0], R[2][1], R[2][2]
+  );
+  const Rc = B.clone().multiply(Rf).multiply(Binv);
+  const e = Rc.elements;
+  return [
+    [e[0], e[1], e[2]],
+    [e[3], e[4], e[5]],
+    [e[6], e[7], e[8]]
+  ];
+}
+
+function matMul3x3(A, B) {
+  const out = [[0,0,0],[0,0,0],[0,0,0]];
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      out[i][j] = A[i][0] * B[0][j] + A[i][1] * B[1][j] + A[i][2] * B[2][j];
+    }
+  }
+  return out;
+}
+
+function getRealYlmRotationMatrix(l, Rcart) {
+  const key = `${l}|${Rcart.flat().map(v => v.toFixed(6)).join(',')}`;
+  if (WIGNER_ROT_CACHE.has(key)) return WIGNER_ROT_CACHE.get(key);
+
+  const dim = 2 * l + 1;
+  const Nth = 16;
+  const Nph = 32;
+  const dTheta = Math.PI / Nth;
+  const dPhi = (2 * Math.PI) / Nph;
+
+  const Yorig = Array.from({ length: dim }, () => []);
+  const Yrot = Array.from({ length: dim }, () => []);
+
+  for (let t = 0; t < Nth; t++) {
+    const theta = (t + 0.5) * dTheta;
+    const sinT = Math.sin(theta);
+    const cosT = Math.cos(theta);
+    for (let p = 0; p < Nph; p++) {
+      const phi = p * dPhi;
+      const x = sinT * Math.cos(phi);
+      const y = sinT * Math.sin(phi);
+      const z = cosT;
+      const v = [x, y, z];
+
+      const vRot = rotateDirection(Rcart, v);
+      const rxy = Math.sqrt(vRot[0] * vRot[0] + vRot[1] * vRot[1]);
+      const thetaR = Math.acos(Math.max(-1, Math.min(1, vRot[2])));
+      let phiR = Math.atan2(vRot[1], vRot[0]);
+      if (phiR < 0) phiR += 2 * Math.PI;
+
+      const yOrig = realYlmVector(l, theta, phi);
+      const yRot = realYlmVector(l, thetaR, phiR);
+      for (let i = 0; i < dim; i++) {
+        Yorig[i].push(yOrig[i]);
+        Yrot[i].push(yRot[i]);
+      }
+    }
+  }
+
+  const YorigT = matT(Yorig);
+  const denom = matMul(Yorig, YorigT);
+  for (let i = 0; i < dim; i++) denom[i][i] += 1e-8;
+  const inv = invertMatrixN(denom);
+  const numer = matMul(Yrot, YorigT);
+  const D = matMul(numer, inv);
+
+  WIGNER_ROT_CACHE.set(key, D);
+  return D;
+}
+
+function rotateHarmonicWeightsByWigner(harmonics, weights, Rcart) {
+  const byL = new Map();
+  for (let i = 0; i < harmonics.length; i++) {
+    const l = harmonics[i][0];
+    if (!byL.has(l)) byL.set(l, []);
+    byL.get(l).push({ idx: i, m: harmonics[i][1] });
+  }
+
+  const out = new Array(weights.length).fill(0);
+  for (const [l, entries] of byL.entries()) {
+    entries.sort((a, b) => a.m - b.m);
+    const dim = 2 * l + 1;
+    if (entries.length !== dim) {
+      // if incomplete, keep weights unchanged for this l
+      for (const e of entries) out[e.idx] = weights[e.idx];
+      continue;
+    }
+    const w = entries.map(e => weights[e.idx]);
+    const D = getRealYlmRotationMatrix(l, Rcart);
+    const wRot = matVec(D, w);
+    for (let i = 0; i < entries.length; i++) {
+      out[entries[i].idx] = wRot[i];
+    }
+  }
+  return out;
+}
 
 // Project ONLY on a provided harmonic list (no filtering, stable slider set)
 function projectTensorToSpecificHarmonics(rank, tensorFlat, harmonics, opts = {}) {
   const Nth = opts.Nth ?? PROJ_NTH;
   const Nph = opts.Nph ?? PROJ_NPH;
 
-  const weights = new Array(harmonics.length).fill(0);
-
-  // tensor_visualizer grid (midpoint theta)
-  const RES_THETA = Nth;
-  const RES_PHI   = Nph;
-  const dPhi   = (2 * Math.PI) / RES_PHI;
-  const dTheta = Math.PI / RES_THETA;
-
-  for (let h = 0; h < harmonics.length; h++) {
-    const [l, m] = harmonics[h];
-    let integ = 0;
-
-    for (let t = 0; t < RES_THETA; t++) {
-      const theta = (t + 0.5) * dTheta;
-      const sinT = Math.sin(theta);
-      const cosT = Math.cos(theta);
-      const dOmega = sinT * dTheta * dPhi;
-
-      for (let p = 0; p < RES_PHI; p++) {
-        const phi = p * dPhi;
-
-        const nx = sinT * Math.cos(phi);
-        const ny = sinT * Math.sin(phi);
-        const nz = cosT;
-
-        const field = window._evalTensorOnDir(tensorFlat, rank, nx, ny, nz);
-        const ylm = getRealYlm(l, m, theta, phi);
-        integ += field * ylm * dOmega;
-      }
-    }
-
-    weights[h] = integ;
-  }
-
-  return weights;
+  return solveHarmonicWeightsByScalarProduct(
+    rank,
+    tensorFlat,
+    harmonics,
+    { Nth, Nph }
+  );
 }
 
 // Discover allowed harmonics from the WHOLE basis space (union)
 // This is the Option A behavior = tensor_visualizer variable discovery.
 function discoverAllowedHarmonicsFromBasis(fullRank, basis, spinIndex, eps = 1e-4) {
-  const spatialRank = fullRank - 1;
   const key = `${fullRank}_s${spinIndex}`;
 
   if (ALLOWED_HARM_CACHE[key]) return ALLOWED_HARM_CACHE[key];
@@ -3864,14 +4008,23 @@ function discoverAllowedHarmonicsFromBasis(fullRank, basis, spinIndex, eps = 1e-
   const active = new Set();
 
   for (const B of basis) {
-    const spatial = sliceSpinComponent(B, fullRank, spinIndex);
+    const { spatialRank, spatialTensor } = getSpatialTensorForProjection(
+      fullRank,
+      spinIndex,
+      B,
+      (CELL_BASIS && CELL_BASIS.a) ? [
+        [CELL_BASIS.a[0], CELL_BASIS.b[0], CELL_BASIS.c[0]],
+        [CELL_BASIS.a[1], CELL_BASIS.b[1], CELL_BASIS.c[1]],
+        [CELL_BASIS.a[2], CELL_BASIS.b[2], CELL_BASIS.c[2]]
+      ] : [[1,0,0],[0,1,0],[0,0,1]]
+    );
 
     // We can use your existing projector with filtering eps to speed up.
     // It returns only non-zero harmonics for this basis vector.
     const proj = projectTensorToRealYlmLocal(
       spatialRank,
-      new Float64Array(spatial),
-      { eps, Nth: PROJ_NTH, Nph: PROJ_NPH }
+      new Float64Array(spatialTensor),
+      { eps, Nth: PROJ_NTH, Nph: PROJ_NPH, lMin: spatialRank, lMax: spatialRank }
     );
 
     for (const [l, m] of proj.harmonics) active.add(_hmKey(l, m));
@@ -3914,9 +4067,7 @@ function buildSiteYlmSliders(fullRank, basis) {
     return;
   }
 
-  const spatialRank = fullRank - 1;
-
-  // === (A) Discover allowed harmonics from WHOLE basis space ===
+  // === Discover allowed harmonics from WHOLE basis space ===
   const allowed = discoverAllowedHarmonicsFromBasis(fullRank, basis, ACTIVE_SPIN, 1e-4);
 
   if (allowed.length === 0) {
@@ -3945,28 +4096,24 @@ function buildSiteYlmSliders(fullRank, basis) {
     GLOBAL_BASIS_COEFFS[fullRank] = new Array(basis.length).fill(0);
   }
 
-  // ✅ Bug 6 rule: initial values must be ZERO
-  // ✅ Bug 6 rule: preserve values when switching spins (same key)
-  // Only re-init if no memory yet OR allowed harmonics changed (new context)
   if (!TV_STATE[key] || !sameHarmonics(TV_STATE[key].harmonics, allowed)) {
     TV_STATE[key] = {
       harmonics: allowed,
       weights: new Array(allowed.length).fill(0)
     };
-    // store slider element refs for this spin (populated when UI is built)
     TV_STATE[key].sliderEls = [];
   }
-    // Always populate the spin harmonic weights from GLOBAL_BASIS_COEFFS if available.
-    if (GLOBAL_BASIS_COEFFS[fullRank] && GLOBAL_BASIS_COEFFS[fullRank].length === basis.length) {
-      try {
-        const P = buildBasisToHarmonicMatrix(fullRank, basis, ACTIVE_SPIN, allowed);
-        const W = matVec(P, GLOBAL_BASIS_COEFFS[fullRank]);
-        TV_STATE[key].weights = W.map(x => (Math.abs(x) < 1e-6 ? 0 : x));
-      } catch (e) {
-        console.warn("Spin inherit failed (basis->harmonics)", e);
-      }
-    }
 
+  // Populate harmonic weights from global basis coefficients
+  if (GLOBAL_BASIS_COEFFS[fullRank] && GLOBAL_BASIS_COEFFS[fullRank].length === basis.length) {
+    try {
+      const P = buildBasisToHarmonicMatrix(fullRank, basis, ACTIVE_SPIN, allowed);
+      const W = matVec(P, GLOBAL_BASIS_COEFFS[fullRank]);
+      TV_STATE[key].weights = W.map(x => (Math.abs(x) < 1e-6 ? 0 : x));
+    } catch (e) {
+      console.warn("Spin inherit failed (basis->harmonics)", e);
+    }
+  }
 
   // === Build sliders for ALL allowed harmonics ===
   let currentL = null;
@@ -3999,7 +4146,6 @@ function buildSiteYlmSliders(fullRank, basis) {
     slider.max =  2;
     slider.step = 0.05;
 
-    // from memory (starts at 0)
     slider.value = TV_STATE[key].weights[i];
 
     const value = document.createElement('div');
@@ -4008,53 +4154,24 @@ function buildSiteYlmSliders(fullRank, basis) {
     value.innerText = Number(slider.value).toFixed(2);
 
     slider.oninput = () => {
-        const v = parseFloat(slider.value);
-        TV_STATE[key].weights[i] = v;
-        value.innerText = v.toFixed(2);
+      const v = parseFloat(slider.value);
+      TV_STATE[key].weights[i] = v;
+      value.innerText = v.toFixed(2);
 
-        try {
-            // 1. Calcul de l'état physique global
-            const P_active = buildBasisToHarmonicMatrix(fullRank, basis, ACTIVE_SPIN, TV_STATE[key].harmonics);
-            const c = leastSquares(P_active, TV_STATE[key].weights, 1e-8);
-            GLOBAL_BASIS_COEFFS[fullRank] = c;
-
-            // 2. BROADCAST : Mise à jour de TOUS les spins (Mx, My, Mz)
-            for (let s = 0; s < 3; s++) {
-                const spinKey = `${fullRank}_s${s}`;
-
-                // Récupère ou crée l'état pour ce spin
-                if (!TV_STATE[spinKey]) {
-                    const allowedSpin = discoverAllowedHarmonicsFromBasis(fullRank, basis, s, 1e-4);
-                    TV_STATE[spinKey] = { harmonics: allowedSpin, weights: new Array(allowedSpin.length).fill(0), sliderEls: [] };
-                }
-
-                const P_spin = buildBasisToHarmonicMatrix(fullRank, basis, s, TV_STATE[spinKey].harmonics);
-                const W_spin = matVec(P_spin, c).map(x => (Math.abs(x) < 1e-6 ? 0 : x));
-
-                TV_STATE[spinKey].weights = W_spin;
-
-                // MISE À JOUR VISUELLE DES CURSEURS CACHÉS
-                if (TV_STATE[spinKey].sliderEls && TV_STATE[spinKey].sliderEls.length === W_spin.length) {
-                    TV_STATE[spinKey].sliderEls.forEach((el, idx) => {
-                        el.slider.value = W_spin[idx];
-                        el.value.innerText = Number(W_spin[idx]).toFixed(2);
-                    });
-                }
-
-                // 3. FORCE LE RENDU 3D pour chaque composante
-                scheduleIsoRender(fullRank, TV_STATE[spinKey].harmonics, TV_STATE[spinKey].weights, s);
-            }
-        } catch (e) {
-            console.warn("Erreur de synchronisation globale:", e);
-        }
+      try {
+        const P_active = buildBasisToHarmonicMatrix(fullRank, basis, ACTIVE_SPIN, TV_STATE[key].harmonics);
+        const c = leastSquares(P_active, TV_STATE[key].weights, 1e-8);
+        GLOBAL_BASIS_COEFFS[fullRank] = c;
+        scheduleIsoRender(fullRank, basis, ACTIVE_SPIN);
+      } catch (e) {
+        console.warn("Global basis sync failed:", e);
+      }
     };
-
 
     row.appendChild(label);
     row.appendChild(slider);
     row.appendChild(value);
     box.appendChild(row);
-    // Save slider DOM refs for external updates (used when other spin sliders change)
     TV_STATE[key].sliderEls.push({ slider, value, l, m });
   }
 }
@@ -4094,8 +4211,6 @@ function buildBlobGeometryFromWeights(harmonics, weights, scale = 0.14) {
   const vid = (i, j) => i * Nph + j;
 
   // --- build vertices + store signed values ---
-  let maxAbsS = 0;
-
   for (let i = 0; i < Nth; i++) {
     const theta = Math.PI * i / (Nth - 1);
     for (let j = 0; j < Nph; j++) {
@@ -4103,8 +4218,7 @@ function buildBlobGeometryFromWeights(harmonics, weights, scale = 0.14) {
 
       const s = tensorSignedValueFromWeights(harmonics, weights, theta, phi);
       const r = Math.abs(s);
-
-      maxAbsS = Math.max(maxAbsS, Math.abs(s));
+      
       svals.push(s);
 
       const x = Math.sin(theta) * Math.cos(phi);
@@ -4127,28 +4241,14 @@ function buildBlobGeometryFromWeights(harmonics, weights, scale = 0.14) {
     }
   }
 
-  // --- colors: diverging (blue -> white -> red) like tensor_visualizer ---
-  if (maxAbsS < 1e-12) maxAbsS = 1.0;
-
+  // --- colors: pure sign mapping (negative = blue, positive = red) ---
   const colors = [];
   for (let k = 0; k < svals.length; k++) {
-    const t = Math.max(-1, Math.min(1, svals[k] / maxAbsS)); // [-1, 1]
-
-    // Blue (-) -> White (0) -> Red (+)
-    // piecewise linear blend
-    let r, g, b;
-    if (t >= 0) {
-      // white -> red
-      r = 1.0;
-      g = 1.0 - t;
-      b = 1.0 - t;
-    } else {
-      // blue -> white
-      const u = 1.0 + t; // t=-1 => 0, t=0 => 1
-      r = u;
-      g = u;
-      b = 1.0;
-    }
+    const s = svals[k];
+    const isNeg = s < 0;
+    const r = isNeg ? 0.0 : 1.0;
+    const g = 0.0;
+    const b = isNeg ? 1.0 : 0.0;
     colors.push(r, g, b);
   }
 
@@ -4179,120 +4279,101 @@ function resetWyckoffSelectionAndClearViewer() {
   clearTensorSlidersUI();
 }
 
-function renderTensorIsosurfacesFromHarmonics(rank, harmonics, weights, spin = ACTIVE_SPIN) {
+function renderTensorIsosurfacesFromHarmonics(rank, basis, spin = ACTIVE_SPIN) {
   if (!scene3d) return;
 
   const orbit = _lastOrbitForTensor;
   if (!orbit) return;
 
+  if (!basis || basis.length === 0) {
+    clearIsoGroup();
+    return;
+  }
+
+  if (!GLOBAL_BASIS_COEFFS[rank] || GLOBAL_BASIS_COEFFS[rank].length !== basis.length) {
+    GLOBAL_BASIS_COEFFS[rank] = new Array(basis.length).fill(0);
+  }
+
+  const coeffs = GLOBAL_BASIS_COEFFS[rank];
+  const fullRank = rank;
+  const spatialRank = Math.max(0, fullRank - 1);
+  const dim = Math.pow(3, fullRank);
+  const tmpBuf = new Float64Array(dim);
+
   if (isoGroup3d) scene3d.remove(isoGroup3d);
   isoGroup3d = new THREE.Group();
 
   const orbitExpanded = expandOrbitForViewer(orbit);
+  const { a, b, c: cc } = CELL_BASIS || { a:[1,0,0], b:[0,1,0], c:[0,0,1] };
+  
+  // DEBUG BASIS
+  console.log("DEBUG: CELL_BASIS a=", a, "b=", b);
+
+  const M = [ [a[0], b[0], cc[0]], [a[1], b[1], cc[1]], [a[2], b[2], cc[2]] ];
+
 
   for (const atom of orbitExpanded) {
     const [u, v, w] = atom.coord;
     const [x, y, z] = fracToCart(u, v, w);
 
-    // --- get site symmetry operation (rotation + time reversal) ---
-    const R_frac = atom.op?.R; // 3x3 rotation in fractional basis
+    const R_frac = atom.op?.R;
     const tr = (atom.op?.tr !== undefined) ? atom.op.tr : 1;
 
-    // --- optional: magnetic sign flip (swaps red/blue) ---
-   // --- optional: magnetic sign flip (swaps red/blue) ---
-// Backend already provides per-site tensors → DO NOT flip again
-    // --- tensor_visualizer sign rule: magnetic orbit atoms may flip sign ---
-    // Determine whether we have global basis coefficients available. If so,
-    // reconstruct the full tensor, apply the site op, convert to Cartesian
-    // spatial tensor and re-project to harmonics for this atom. This ensures
-    // the blob shape is correctly computed per-site (necessary for NCL).
-    const fullRank = rank;
-    const spatialRank = Math.max(0, fullRank - 1);
-    let atomWeights = null;
-
-    try {
-      const basis = getBasisForRank(fullRank);
-      const c = GLOBAL_BASIS_COEFFS[fullRank];
-      if (basis && Array.isArray(basis) && c && c.length === basis.length) {
-        // Build local fractional tensor by applying the site operation to EACH
-        // basis vector and summing with GLOBAL_BASIS_COEFFS. This avoids rotating
-        // the final global tensor (which can be numerically different) and also
-        // allows caching per-op transforms later if needed.
-        const dim = Math.pow(3, fullRank);
-        const localFrac = new Float64Array(dim);
-        const tmpBuf = new Float64Array(dim);
-        for (let b = 0; b < basis.length; b++) {
-          const coeff = c[b];
-          if (Math.abs(coeff) < 1e-12) continue;
-          const baseVec = basis[b].slice();
-          const transformed = R_frac ? applyOpToTensor(baseVec, fullRank, R_frac, tmpBuf) : baseVec;
-          for (let i = 0; i < dim; i++) localFrac[i] += coeff * transformed[i];
-        }
-
-        // Magnetic sign factor: apply tr*detR if magnetic mode
-        if (typeof multipoleMode !== "undefined" && multipoleMode === "magnetic") {
-          const signFactor = (R_frac ? ((atom.op && atom.op.tr !== undefined) ? atom.op.tr : 1) * det3x3(R_frac) : 1);
-          if (Math.abs(signFactor - 1) > 1e-12) {
-            for (let i = 0; i < localFrac.length; i++) localFrac[i] *= signFactor;
-          }
-        }
-
-        // Slice out spin component to get spatial tensor (Cartesian projection MUST
-        // be done on the spatial tensor to avoid rotating spin indices)
-        const spatialFrac = sliceSpinComponent(localFrac, fullRank, spin);
-
-        // Build fractional->Cartesian matrix M (rows i = cart axis, cols j = frac axis)
-        const { a, b, c: cc } = CELL_BASIS || { a:[1,0,0], b:[0,1,0], c:[0,0,1] };
-        const M = [ [a[0], b[0], cc[0]], [a[1], b[1], cc[1]], [a[2], b[2], cc[2]] ];
-
-        // Transform spatial tensor to Cartesian frame
-        const spatialCart = transformSpatialTensorToCartesian(spatialFrac, spatialRank, M);
-
-        // Project onto requested harmonics (Cartesian spatial tensor)
-        atomWeights = projectTensorToSpecificHarmonics(spatialRank, spatialCart, harmonics, { Nth: PROJ_NTH, Nph: PROJ_NPH });
-      }
-    } catch (e) {
-      console.warn('Per-atom reconstruction failed, falling back to legacy behavior', e);
-      atomWeights = null;
+    const localFrac = new Float64Array(dim);
+    for (let bIdx = 0; bIdx < basis.length; bIdx++) {
+      const coeff = coeffs[bIdx];
+      if (Math.abs(coeff) < 1e-12) continue;
+      const baseVec = basis[bIdx].slice();
+      const transformed = R_frac ? applyOpToTensor(baseVec, fullRank, R_frac, tmpBuf) : baseVec;
+      for (let i = 0; i < dim; i++) localFrac[i] += coeff * transformed[i];
     }
 
-    // Fallback: if we couldn't build per-atom weights from GLOBAL_BASIS_COEFFS,
-    // fall back to previous behavior (sign flip + rotate mesh)
-    if (!atomWeights) {
-      let factor = 1;
-      if (typeof multipoleMode !== "undefined" && multipoleMode === "magnetic" && atom?.op?.R) {
-        const tr2 = (atom.op.tr !== undefined) ? atom.op.tr : 1;
-        factor = tr2 * det3x3(atom.op.R);
-      }
-      const wLocal = (factor < 0) ? weights.map(v => -v) : weights;
-      const geo = buildBlobGeometryFromWeights(harmonics, wLocal, 0.14);
+    const mMode = (typeof multipoleMode !== "undefined") ? multipoleMode : 
+                  (document.querySelector('input[name="multipoleType"]:checked')?.value || 'electric');
 
-      const mesh = new THREE.Mesh(
-        geo,
-        new THREE.MeshStandardMaterial({
-          vertexColors: true,
-          transparent: false,
-          opacity: 1.0,
-          side: THREE.DoubleSide
-        })
-      );
-      mesh.renderOrder = 1;
-
-      // rotate tensor to match this atom's symmetry rotation (legacy fallback)
-      if (R_frac) {
-        const m4 = fracRotToCartMatrix4(R_frac);
-        mesh.applyMatrix4(m4);
+    if (mMode === "magnetic") {
+      const detR = R_frac ? det3x3(R_frac) : 1;
+      const signFactor = tr * detR;
+      if (Math.abs(signFactor - 1) > 1e-12) {
+        for (let i = 0; i < localFrac.length; i++) localFrac[i] *= signFactor;
       }
-      mesh.position.set(x, y, z);
-      isoGroup3d.add(mesh);
-      continue; // next atom
     }
 
-    // Build geometry using per-atom harmonics (Cartesian projection already applied)
-    const geo = buildBlobGeometryFromWeights(harmonics, atomWeights, 0.14);
+    const { spatialRank: projRank, spatialTensor } = getSpatialTensorForProjection(
+      fullRank,
+      spin,
+      localFrac,
+      M
+    );
+
+    const proj = projectTensorToRealYlmLocal(projRank, spatialTensor, {
+      eps: 1e-4,
+      Nth: PROJ_NTH,
+      Nph: PROJ_NPH,
+      lMin: projRank,
+      lMax: projRank
+    });
+
+    // DEBUG: Monitor Y00 weights
+    if (proj.harmonics) {
+       const idx00 = proj.harmonics.findIndex(h => h[0] === 0 && h[1] === 0);
+       if (idx00 !== -1) {
+         const label = (atom.originalIndex !== undefined) ? `Atom ${atom.originalIndex + 1}` : 'Atom ?';
+         console.log(`[Y00 Monitor] ${label} at (${u.toFixed(3)}, ${v.toFixed(3)}, ${w.toFixed(3)}) : ${proj.weights[idx00].toPrecision(5)}`);
+       }
+    }
+
+    if (!proj.harmonics || proj.harmonics.length === 0) continue;
+
+    const geo = buildBlobGeometryFromWeights(proj.harmonics, proj.weights, 0.14);
     const mesh = new THREE.Mesh(
       geo,
-      new THREE.MeshStandardMaterial({ vertexColors: true, transparent: false, opacity: 1.0, side: THREE.DoubleSide })
+      new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        transparent: false,
+        opacity: 1.0,
+        side: THREE.DoubleSide
+      })
     );
     mesh.renderOrder = 1;
     mesh.position.set(x, y, z);
@@ -4352,11 +4433,7 @@ function renderTensorIsosurfacesFromSiteTensor(orbitMaybe) {
 
     buildSiteYlmSliders(rank, basis);
 
-    const key = `${rank}_s${ACTIVE_SPIN}`;
-    const st = TV_STATE[key];
-    if (!st || !st.harmonics || st.harmonics.length === 0) { scene3d.add(isoGroup3d); return; }
-
-  renderTensorIsosurfacesFromHarmonics(rank, st.harmonics, st.weights, ACTIVE_SPIN);
+  renderTensorIsosurfacesFromHarmonics(rank, basis, ACTIVE_SPIN);
 
 
 
@@ -4381,7 +4458,7 @@ document.getElementById('wyckoffSelect').onchange = async () => {
 
 document.addEventListener("change", (e) => {
   if (e.target && e.target.classList.contains("rankIso")) {
-    resetTensorSliderMemory();   // ✅ Bug 6 rule
+    resetTensorSliderMemory();   //  Bug 6 rule
     clearTensorSlidersUI();      // optional
     updateOrbitViewer();
   }
