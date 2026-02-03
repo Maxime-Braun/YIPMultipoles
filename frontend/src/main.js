@@ -16,6 +16,8 @@ window.OrbitControls = OrbitControls;
         const cellParamsCancelBtn = document.getElementById("cancelCellParamsBtn");
         const cellParamsMsg = document.getElementById("cellParamsMsg");
         const cellParamsError = document.getElementById("cellParamsError");
+        const importMcifBtn = document.getElementById("importMcifBtn");
+        const mcifFileInput = document.getElementById("mcifFileInput");
         const cellParamInputs = {
           a: document.getElementById("cell_a"),
           b: document.getElementById("cell_b"),
@@ -31,7 +33,114 @@ window.OrbitControls = OrbitControls;
           monoclinic: { a: 1.2, b: 1.0, c: 1.3, alpha: 90, beta: 110, gamma: 90 }
         };
   const CUSTOM_CELL_ENABLED = { triclinic: false, monoclinic: false };
+  let CUSTOM_CELL_GLOBAL = null;
+  let CUSTOM_CELL_GLOBAL_ENABLED = false;
+  let MCIF_ATOM_VARS = null;
   let SUPPRESS_CELL_PARAM_MODAL_ONCE = false;
+
+        function parseMcifValue(raw) {
+          if (!raw) return null;
+          const cleaned = String(raw).replace(/[\"']/g, "").trim();
+          const val = parseFloat(cleaned);
+          return Number.isFinite(val) ? val : null;
+        }
+
+        function extractMcifRaw(text, tag) {
+          const re = new RegExp(`${tag}\\s+([^\\r\\n]+)`, "i");
+          const match = text.match(re);
+          return match ? match[1].trim() : null;
+        }
+
+        function extractMcifTag(text, tag) {
+          const raw = extractMcifRaw(text, tag);
+          return raw ? parseMcifValue(raw) : null;
+        }
+
+        function parseMcifMagneticGroup(text) {
+          const numRaw = extractMcifRaw(text, "_space_group_magn.number_BNS") ||
+            extractMcifRaw(text, "_space_group_magn.number_bns") ||
+            extractMcifRaw(text, "_magnetic_space_group.number_BNS");
+          if (numRaw) {
+            const match = numRaw.match(/[\d.]+/);
+            if (match) return match[0];
+          }
+
+          const nameRaw = extractMcifRaw(text, "_space_group_magn.name_BNS") ||
+            extractMcifRaw(text, "_space_group_magn.name_bns") ||
+            extractMcifRaw(text, "_magnetic_space_group.name_BNS");
+          if (nameRaw) {
+            const bnsMatch = nameRaw.match(/BNS:\s*([\d.]+)/i);
+            if (bnsMatch) return bnsMatch[1];
+            const numMatch = nameRaw.match(/[\d.]+/);
+            if (numMatch) return numMatch[0];
+          }
+
+          const fallback = text.match(/BNS:\s*([\d.]+)/i);
+          if (fallback) return fallback[1];
+          return null;
+        }
+
+        function parseMcifAtomFract(text) {
+          const lines = text.split(/\r?\n/);
+          let i = 0;
+          while (i < lines.length) {
+            const line = lines[i].trim();
+            if (line.toLowerCase() === "loop_") {
+              const headers = [];
+              i += 1;
+              while (i < lines.length) {
+                const hdr = lines[i].trim();
+                if (!hdr || hdr.startsWith("#")) {
+                  i += 1;
+                  continue;
+                }
+                if (!hdr.startsWith("_")) break;
+                headers.push(hdr);
+                i += 1;
+              }
+              const xIdx = headers.findIndex(h => h.toLowerCase() === "_atom_site_fract_x");
+              const yIdx = headers.findIndex(h => h.toLowerCase() === "_atom_site_fract_y");
+              const zIdx = headers.findIndex(h => h.toLowerCase() === "_atom_site_fract_z");
+              if (xIdx >= 0 && yIdx >= 0 && zIdx >= 0) {
+                while (i < lines.length) {
+                  const dataLine = lines[i].trim();
+                  if (!dataLine || dataLine.startsWith("#")) {
+                    i += 1;
+                    continue;
+                  }
+                  if (dataLine.startsWith("_") || dataLine.toLowerCase() === "loop_" || dataLine.startsWith("data_")) {
+                    break;
+                  }
+                  const parts = dataLine.split(/\s+/);
+                  if (parts.length >= headers.length) {
+                    const x = parseMcifValue(parts[xIdx]);
+                    const y = parseMcifValue(parts[yIdx]);
+                    const z = parseMcifValue(parts[zIdx]);
+                    if ([x, y, z].every(v => v !== null)) {
+                      return { x, y, z };
+                    }
+                  }
+                  i += 1;
+                }
+              }
+            }
+            i += 1;
+          }
+          return null;
+        }
+
+        function parseMcifCellParams(text) {
+          const params = {
+            a: extractMcifTag(text, "_cell_length_a"),
+            b: extractMcifTag(text, "_cell_length_b"),
+            c: extractMcifTag(text, "_cell_length_c"),
+            alpha: extractMcifTag(text, "_cell_angle_alpha"),
+            beta: extractMcifTag(text, "_cell_angle_beta"),
+            gamma: extractMcifTag(text, "_cell_angle_gamma")
+          };
+          if (Object.values(params).some(v => v === null)) return null;
+          return params;
+        }
 
         function showCellParamsError(msg) {
           if (!cellParamsError) return;
@@ -117,6 +226,14 @@ window.OrbitControls = OrbitControls;
           }
           closeCellParamsModal();
         }
+        function applyGlobalCellParams(params) {
+          CUSTOM_CELL_GLOBAL = { ...params };
+          CUSTOM_CELL_GLOBAL_ENABLED = true;
+          if (currentGroup && currentGroup.name) {
+            SUPPRESS_CELL_PARAM_MODAL_ONCE = true;
+            setUnitCellFromGroupName(currentGroup.name);
+          }
+        }
 
         helpBtn.onclick = function(e) {
             e.preventDefault();
@@ -124,6 +241,74 @@ window.OrbitControls = OrbitControls;
         }
         helpClose.onclick = function() {
             helpModal.style.display = "none";
+        }
+
+        if (importMcifBtn && mcifFileInput) {
+          importMcifBtn.onclick = () => mcifFileInput.click();
+          mcifFileInput.onchange = async () => {
+            const file = mcifFileInput.files && mcifFileInput.files[0];
+            if (!file) return;
+            const text = await file.text();
+            const params = parseMcifCellParams(text);
+            if (!params) {
+              const status = document.getElementById("status");
+              if (status) status.innerText = "Could not read cell parameters from the mcif file.";
+              mcifFileInput.value = "";
+              return;
+            }
+
+            const status = document.getElementById("status");
+            const groupInput = document.getElementById("groupNumberInput");
+            const mcifGroup = parseMcifMagneticGroup(text);
+            const mcifAtom = parseMcifAtomFract(text);
+            MCIF_ATOM_VARS = mcifAtom ? { ...mcifAtom } : null;
+
+            if (mcifGroup && groupInput) {
+              groupInput.value = mcifGroup;
+              if (typeof groupInput.onchange === "function") {
+                await groupInput.onchange({ target: groupInput });
+              } else {
+                groupInput.dispatchEvent(new Event("change"));
+              }
+            }
+
+            const system = currentGroup && currentGroup.name
+              ? crystalSystemFromSGNumber(parseBNSNumberMajor(currentGroup.name))
+              : null;
+
+            CUSTOM_CELL_PARAMS.triclinic = { ...params };
+            CUSTOM_CELL_PARAMS.monoclinic = { ...params };
+            applyGlobalCellParams(params);
+
+            if (system === "triclinic" || system === "monoclinic") {
+              setCellParamInputs(system);
+              if (cellParamInputs.a) cellParamInputs.a.value = params.a;
+              if (cellParamInputs.b) cellParamInputs.b.value = params.b;
+              if (cellParamInputs.c) cellParamInputs.c.value = params.c;
+              if (cellParamInputs.alpha) cellParamInputs.alpha.value = params.alpha;
+              if (cellParamInputs.beta) cellParamInputs.beta.value = params.beta;
+              if (cellParamInputs.gamma) cellParamInputs.gamma.value = params.gamma;
+              const err = validateCellParams(params);
+              if (err) {
+                showCellParamsError(err);
+                openCellParamsModal(system);
+              } else {
+                applyCellParams(system, params);
+                if (status) {
+                  status.innerText = mcifGroup
+                    ? `Cell parameters loaded from mcif. Group ${mcifGroup} selected.`
+                    : "Cell parameters loaded from mcif.";
+                }
+              }
+            } else {
+              if (status) {
+                status.innerText = mcifGroup
+                  ? `Group ${mcifGroup} selected. Cell parameters loaded from mcif.`
+                  : "Cell parameters loaded from mcif.";
+              }
+            }
+            mcifFileInput.value = "";
+          };
         }
 
         if (cellParamsClose) {
@@ -218,6 +403,10 @@ const API_BASE = (import.meta.env.VITE_API_BASE || (window.location.origin + "/a
             db = groups; // [{index, name}]
             const sel = document.getElementById('groupSelect');
             sel.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.text = 'Select MSG...';
+      sel.appendChild(placeholder);
             db.forEach(g => {
                 const opt = document.createElement('option');
                 opt.value = g.index;
@@ -282,11 +471,7 @@ const API_BASE = (import.meta.env.VITE_API_BASE || (window.location.origin + "/a
 
             };
 
-            if (db.length > 0) {
-                sel.value = db[0].index;
-                updateInputFromSelect();
-                await populateWyckoff(sel.value);
-            }
+      sel.value = '';
         }
 
         async function loadGroupDetails(idx) {
@@ -310,7 +495,7 @@ function ensureSpinButtons() {
   row.style.margin = '6px 0 10px 0';
 
   const lab = document.createElement('div');
-  lab.textContent = 'Spin:';
+  lab.textContent = 'Channel:';
   lab.style.fontWeight = '700';
   row.appendChild(lab);
 
@@ -354,7 +539,7 @@ function ensureSpinButtons() {
     const resetBtn = document.createElement('button');
     resetBtn.id = 'reset-sliders-btn';
     resetBtn.type = 'button';
-    resetBtn.textContent = 'Reset sliders';
+    resetBtn.textContent = 'Reset';
     resetBtn.style.padding = '4px 10px';
     resetBtn.style.border = '1px solid #ccc';
     resetBtn.style.borderRadius = '6px';
@@ -555,6 +740,7 @@ function minOrbitDistance(orbit, group) {
 }
 
 function generateWyckoffRandomVars(group, wyckoff) {
+  if (MCIF_ATOM_VARS) return { ...MCIF_ATOM_VARS };
   if (!group || !wyckoff) return { x: Math.random(), y: Math.random(), z: Math.random() };
 
   let bestVars = null;
@@ -606,7 +792,9 @@ async function populateWyckoff(idx) {
             
         }
 
-        const triggerCompute = async () => {
+    const FIXED_MAX_RANK = 5;
+
+    const triggerCompute = async () => {
             const wSel = document.getElementById("wyckoffSelect")?.value;
             if (!wSel) {
             resetWyckoffSelectionAndClearViewer();
@@ -614,8 +802,8 @@ async function populateWyckoff(idx) {
             }
             const wIdx = document.getElementById('wyckoffSelect').value;       // this clears #wyckoffBoxes   // <- ADD THIS LINE (rebuild it)
 
-            const maxRank = parseInt(document.getElementById('maxRank').value, 10);
-            syncRankIsoWithMaxRank(maxRank);
+      const maxRank = FIXED_MAX_RANK;
+      syncRankIsoWithMaxRank(maxRank);
             
             if (!currentGroup || wIdx === "") return;
             // Generate one random (x,y,z) per Wyckoff choice (not for "whole")
@@ -653,14 +841,6 @@ async function populateWyckoff(idx) {
         triggerCompute();           // your normal compute
         updateOrbitViewer();        // draw spheres
         };
-        document.getElementById('maxRank').onchange = () => {
-        const maxRank = parseInt(document.getElementById('maxRank').value, 10);
-        syncRankIsoWithMaxRank(maxRank);     // ✅ always update UI
-
-        const wSel = document.getElementById("wyckoffSelect")?.value;
-        if (wSel) triggerCompute();          // ✅ only compute if a Wyckoff is chosen
-        };
-        document.getElementById('exportOrbitBtn').onclick = exportOrbitJSON;
         document.getElementById('voigtCheck').onchange = () => {
             const resultsDiv = document.getElementById('results');
             // Keep the site symmetry block (first child)
@@ -701,18 +881,18 @@ async function populateWyckoff(idx) {
       };
     }
 
-        // Multipole type radio buttons
-        const multipoleRadios = document.getElementsByName('multipoleType');
-        multipoleRadios.forEach(r => {
-            r.onchange = () => {
-            multipoleMode =document.querySelector('input[name="multipoleType"]:checked').value;
-            resetWyckoffSelectionAndClearViewer();
-            resetTensorSliderMemory();
+    // Multipole type select menu
+    const multipoleTypeSelect = document.getElementById('multipoleTypeSelect');
+    if (multipoleTypeSelect) {
+      multipoleTypeSelect.onchange = () => {
+      multipoleMode = multipoleTypeSelect.value;
+      resetWyckoffSelectionAndClearViewer();
+      resetTensorSliderMemory();
 
-            document.getElementById("status").innerText =
-                "Mode changed — select a Wyckoff position…";
-            };
-        });
+      document.getElementById("status").innerText =
+        "Mode changed — select a Wyckoff position…";
+      };
+    }
 
         
 
@@ -3129,6 +3309,11 @@ function latticeBasisFromParams(params) {
 function getCellBasis(system) {
   let a = [1, 0, 0], b = [0, 1, 0], c = [0, 0, 1];
 
+  if (CUSTOM_CELL_GLOBAL_ENABLED && CUSTOM_CELL_GLOBAL) {
+    const basis = latticeBasisFromParams(CUSTOM_CELL_GLOBAL);
+    if (basis) return basis;
+  }
+
   if ((system === "triclinic" || system === "monoclinic") &&
       CUSTOM_CELL_ENABLED && CUSTOM_CELL_ENABLED[system]) {
     const custom = CUSTOM_CELL_PARAMS && CUSTOM_CELL_PARAMS[system];
@@ -3377,9 +3562,10 @@ function updateOrbitSphereTooltips(orbit, groups) {
 }
 
 function getSelectedIsoRanks() {
-  return Array.from(document.querySelectorAll(".rankIso:checked"))
-    .map(cb => parseInt(cb.value, 10))
-    .filter(n => !isNaN(n));
+  const el = document.getElementById("rankIsoSelect");
+  if (!el) return [];
+  const val = parseInt(el.value, 10);
+  return Number.isNaN(val) ? [] : [val];
 }
 
 function clearViewerOrbit() {
@@ -3826,42 +4012,40 @@ if (document.readyState === "loading") {
   applyVisualizerToggle(); // DOM already loaded
 }
 function syncRankIsoWithMaxRank(maxRank) {
-  const radios = document.querySelectorAll(".rankIso");
-  let highestEnabled = null;
-  let highestValue = -Infinity;
+  const select = document.getElementById("rankIsoSelect");
+  if (!select) return;
 
-  radios.forEach(r => {
-    const val = parseInt(r.value, 10);
+  const options = Array.from(select.options);
+  let highestEnabled = null;
+
+  options.forEach(opt => {
+    const val = parseInt(opt.value, 10);
+    if (Number.isNaN(val)) return;
 
     if (val <= maxRank) {
-      r.disabled = false;
-      r.parentElement.style.display = "";   // IMPORTANT: restore if previously hidden
-      r.parentElement.style.opacity = "1";
-      if (val > highestValue) {
-        highestValue = val;
-        highestEnabled = r;
-      }
+      opt.disabled = false;
+      opt.hidden = false;
+      highestEnabled = opt;
     } else {
-      r.disabled = true;
-      r.checked = false;
-      r.parentElement.style.display = "none";
+      opt.disabled = true;
+      opt.hidden = true;
     }
   });
 
-  const checked = document.querySelector(".rankIso:checked");
-  if (!checked && highestEnabled) {
-    highestEnabled.checked = true;
+  const currentVal = parseInt(select.value, 10);
+  if (!Number.isNaN(currentVal) && currentVal <= maxRank) return;
 
-    // ✅ force the same behavior as user clicking the radio
-    highestEnabled.dispatchEvent(new Event("change", { bubbles: true }));
+  if (highestEnabled) {
+    select.value = highestEnabled.value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
   }
 }
 
 
 // === Tensor-Visualizer style: Tensor -> (allowed_harmonics, weights) -> sliders ===
 // Performance tuning (lower values = faster, higher = smoother)
-const VIS_NTH = 28;
-const VIS_NPH = 56;
+let VIS_NTH = 30;
+let VIS_NPH = 60;
 const PROJ_NTH = 36;
 const PROJ_NPH = 72;
 
@@ -4525,8 +4709,8 @@ function renderTensorIsosurfacesFromHarmonics(rank, basis, spin = ACTIVE_SPIN) {
       for (let i = 0; i < dim; i++) localFrac[i] += coeff * transformed[i];
     }
 
-    const mMode = (typeof multipoleMode !== "undefined") ? multipoleMode : 
-                  (document.querySelector('input[name="multipoleType"]:checked')?.value || 'electric');
+  const mMode = (typeof multipoleMode !== "undefined") ? multipoleMode : 
+          (document.getElementById('multipoleTypeSelect')?.value || 'electric');
 
     if (mMode === "magnetic") {
       const detR = R_frac ? det3x3(R_frac) : 1;
@@ -4583,9 +4767,10 @@ function renderTensorIsosurfacesFromHarmonics(rank, basis, spin = ACTIVE_SPIN) {
 let _lastOrbitForTensor = null;
 // Returns the currently selected tensor rank from the UI
 function getSelectedRank() {
-  const el = document.querySelector('input[name="rankIso"]:checked');
+  const el = document.getElementById("rankIsoSelect");
   if (!el) return null;
-  return parseInt(el.value, 10);
+  const val = parseInt(el.value, 10);
+  return Number.isNaN(val) ? null : val;
 }
 
 // Return the basis array for a given rank from the latest backend results.
@@ -4595,15 +4780,6 @@ function getBasisForRank(rank) {
   const r = lastResults.find(x => x && x.rank === rank);
   return (r && Array.isArray(r.basis)) ? r.basis : [];
 }
-const maxRankInput = document.getElementById("maxRank");
-
-maxRankInput.addEventListener("keydown", e => {
-  // allow only arrows + tab
-  if (!["ArrowUp", "ArrowDown", "Tab"].includes(e.key)) {
-    e.preventDefault();
-  }
-});
-
 function renderTensorIsosurfacesFromSiteTensor(orbitMaybe) {
   if (!scene3d) return;
 
@@ -4653,13 +4829,14 @@ document.getElementById('wyckoffSelect').onchange = async () => {
 };
 
 
-document.addEventListener("change", (e) => {
-  if (e.target && e.target.classList.contains("rankIso")) {
+const rankIsoSelect = document.getElementById("rankIsoSelect");
+if (rankIsoSelect) {
+  rankIsoSelect.addEventListener("change", () => {
     resetTensorSliderMemory();   //  Bug 6 rule
     clearTensorSlidersUI();      // optional
     updateOrbitViewer();
-  }
-});
+  });
+}
 
 // buildYlmSlidersUI() is called after each compute() so sliders match symmetry
 document.getElementById("exportSceneBtn").onclick = () => {
