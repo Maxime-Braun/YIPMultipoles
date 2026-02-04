@@ -4976,11 +4976,13 @@ function renderTensorIsosurfacesFromHarmonics(rank, basis, spin = ACTIVE_SPIN) {
     const geo = buildBlobGeometryFromWeights(proj.harmonics, proj.weights, 0.14);
     const mesh = new THREE.Mesh(
       geo,
-      new THREE.MeshStandardMaterial({
+      new THREE.MeshPhongMaterial({
         vertexColors: true,
         transparent: false,
-        opacity: 1.0,
-        side: THREE.DoubleSide
+        opacity: 0.8,
+        side: THREE.DoubleSide,
+        shininess: 20,
+        specular: new THREE.Color(0xffffff)
       })
     );
     mesh.renderOrder = 1;
