@@ -3,28 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Magnetic Multipole Calculator</title>
+    <title>Mag Sym Multipoles</title>
     <link rel="icon" type="image/png" href="/favicon.png">
     <style>
     body { font-family: sans-serif; padding: 20px; }
     .container { max-width: 1200px; margin: 0 auto; }
     .controls { margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px; }
         select, button, input { padding: 8px; margin-right: 10px; }
-        .header-bar {
+        .controls-header {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
+            justify-content: flex-start;
             gap: 16px;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
             flex-wrap: wrap;
         }
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 14px;
+        .controls-header .controls-row {
+            margin-bottom: 0;
         }
-        .header-title img {
-            height: 140px;
+        .header-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1 1 520px;
+            min-width: 320px;
+        }
+        .header-logo {
+            height: 120px;
             width: auto;
             display: block;
         }
@@ -193,92 +198,132 @@
         border: 1px solid rgba(255,255,255,0.08);
         margin-top: 10px;
         }
+        .logo-footer {
+        margin-top: 28px;
+        padding: 0px 0px;
+        background: #ffffff;
+        border: 1px dashed #ffffff;
+        border-radius: 10px;
+        }
+        .logo-footer h3 {
+        margin: 0 0 12px 0;
+        font-size: 1.05em;
+        color: #ffffff;
+        }
+        .logo-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        align-items: center;
+        justify-content: center;
+        }
+        .logo-placeholder {
+        width: 280px;
+        height: 140px;
+        border-radius: 8px;
+        border: 2px dashed #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.85em;
+        color: #ffffff;
+        background: #fff;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        }
+        .logo-placeholder img {
+        max-height: 104px;
+        max-width: 240px;
+        width: auto;
+        height: auto;
+        display: block;
+        }
+        .logo-neel {
+        max-height: 56px;
+        }
     </style>
     
 </head>
 <body>
     <div class="container">
-        <div class="header-bar">
-        <div class="header-title">
-        <img src="public/logo.png" alt="Multipole logo"/>
-        <h1 style="margin: 0;">Multipole Calculator</h1>
-    </div>
-    <a href="#" id="helpLink" style="text-decoration: none; font-size: 1.1em; color: #2196F3; display: flex; align-items: center;">
-    <span style="margin-right: 5px;">❓</span> Help / Tutorial
-    </a>
-
-</div>       
         <div class="controls">
-            <div class="controls-row">
-                <label class="control-group">
-                    <span class="control-label">BNS No.:</span>
-                    <input type="text" id="groupNumberInput" placeholder="e.g. 1.1" style="width: 70px;">
-                </label>
-                <select id="groupSelect" style="max-width: 300px;"></select>
-                <button id="importMcifBtn" type="button">Import .mcif</button>
-                <label class="control-group">
-                    <span class="control-label">Wyckoff:</span>
-                    <select id="wyckoffSelect" style="max-width: 200px;"></select>
-                </label>
-                <input id="mcifFileInput" type="file" accept=".mcif,.cif,.txt" style="display: none;" />
+            <div class="controls-header">
+                <img class="header-logo" src="public/logo.png" alt="Multipole logo"/>
+                <div class="header-controls">
+                    <div class="controls-row">
+                        <label class="control-group">
+                            <span class="control-label">BNS No.:</span>
+                            <input type="text" id="groupNumberInput" placeholder="e.g. 1.1" style="width: 70px;">
+                        </label>
+                        <select id="groupSelect" style="max-width: 300px;"></select>
+                        <button id="importMcifBtn" type="button">Import .mcif</button>
+                        <label class="control-group">
+                            <span class="control-label">Wyckoff:</span>
+                            <select id="wyckoffSelect" style="max-width: 200px;"></select>
+                        </label>
+                        <input id="mcifFileInput" type="file" accept=".mcif,.cif,.txt" style="display: none;" />
+                    </div>
+                    <div class="controls-row">
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="crystalBasisSwitch">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">Crystal Basis</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="includeSocSwitch" checked>
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">SOC</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="voigtCheck">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">Voigt Notation</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="showLabelDefsSwitch">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">Label Def.</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="control-label" for="multipoleTypeSelect">Type:</label>
+                            <select id="multipoleTypeSelect" style="max-width: 140px;">
+                                <option value="magnetic" selected>Magnetic</option>
+                                <option value="electric">Electric</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="visualizerSwitch">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">Visualizer</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="control-label" for="rankIsoSelect">Pure rank:</label>
+                            <select id="rankIsoSelect" style="max-width: 180px;">
+                                <option value="1" selected>Dipole (Rank 1)</option>
+                                <option value="2">Quadrupole (Rank 2)</option>
+                                <option value="3">Octupole (Rank 3)</option>
+                                <option value="4">Hexadecapole (Rank 4)</option>
+                                <option value="5">Triakontadipole (Rank 5)</option>
+                            </select>
+                        </div>
+                        <button id="exportSceneBtn" type="button">Export Image (PNG)</button>
+                    </div>
+                </div>
+                <a href="#" id="helpLink" style="text-decoration: none; font-size: 1.1em; color: #2196F3; display: flex; align-items: center;">
+                <span style="margin-right: 5px;">❓</span> Help / Tutorial
+                </a>
             </div>
-            <div class="controls-row">
-                <div class="control-group">
-                    <label class="switch" style="margin-bottom: 0;">
-                        <input type="checkbox" id="crystalBasisSwitch">
-                        <span class="slider"></span>
-                    </label>
-                    <span class="control-label">Crystal Basis</span>
-                </div>
-                <div class="control-group">
-                    <label class="switch" style="margin-bottom: 0;">
-                        <input type="checkbox" id="visualizerSwitch">
-                        <span class="slider"></span>
-                    </label>
-                    <span class="control-label">Visualizer</span>
-                </div>
-                <div class="control-group">
-                    <label class="switch" style="margin-bottom: 0;">
-                        <input type="checkbox" id="voigtCheck">
-                        <span class="slider"></span>
-                    </label>
-                    <span class="control-label">Voigt Notation</span>
-                </div>
-                <div class="control-group">
-                    <label class="switch" style="margin-bottom: 0;">
-                        <input type="checkbox" id="showLabelDefsSwitch">
-                        <span class="slider"></span>
-                    </label>
-                    <span class="control-label">Show label definitions</span>
-                </div>
-                <div class="control-group">
-                    <label class="control-label" for="multipoleTypeSelect">Type:</label>
-                    <select id="multipoleTypeSelect" style="max-width: 140px;">
-                        <option value="magnetic" selected>Magnetic</option>
-                        <option value="electric">Electric</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label class="switch" style="margin-bottom: 0;">
-                        <input type="checkbox" id="includeSocSwitch" checked>
-                        <span class="slider"></span>
-                    </label>
-                    <span class="control-label">Include SOC</span>
-                </div>
-                </div>
                 <div id="visualizerPanel" style="display:none;">
-                <div id="rankIsoBox" style="margin:10px 0; padding:10px; background:#f5f5f5; border-radius:8px; display:flex; align-items:center; gap:12px; flex-wrap: wrap;">
-                <label style="font-weight:600; margin-right:8px;">Pure rank visualized:</label>
-                <select id="rankIsoSelect" style="max-width: 180px;">
-                    <option value="1" selected>Dipole (Rank 1)</option>
-                    <option value="2">Quadrupole (Rank 2)</option>
-                    <option value="3">Octupole (Rank 3)</option>
-                    <option value="4">Hexadecapole (Rank 4)</option>
-                    <option value="5">Triakontadipole (Rank 5)</option>
-                </select>
-                </div>
-                <button id="exportSceneBtn" type="button">Export Image (PNG)</button>
-                <h3 style="margin-top:18px;">Orbit Viewer</h3>
                 <div id="viewer3d"></div>
                 <div id="atom-tooltip" style="
                 position: fixed;
@@ -299,26 +344,34 @@
                     <b>Spherical harmonic weights</b>
                     <div id="tensor-sliders" style="margin-top:8px;"></div>
                     <div id="tensor-forbidden" style="margin-top:6px; color:#b00020; font-weight:600; display:none;"></div>
-                </div>
-            </div> 
-       </div>
+                </div> 
+        </div>
     </div>
  </div>
     <div id="status"></div>
         <div id="results" class="results"></div> 
         <pre id="debugLog" style="font-family: monospace; background: #222; color: #eee; padding: 8px; display: none; white-space: pre-wrap; max-height: 240px; overflow: auto; margin-top: 12px;"></pre>
+        <div class="logo-footer" aria-label="Logo placeholder section">
+            <div class="logo-strip">
+                <div class="logo-placeholder"><img src="public/Neel.png" alt="Neel logo"/></div>
+                <div class="logo-placeholder"><img src="public/CNRS.png" alt="Crns logo"/></div>
+                <div class="logo-placeholder"><img src="public/ANR.png" alt="ANR logo"/></div>
+                <div class="logo-placeholder"><img src="public/PEPR.png" alt="PEPR logo"/></div>
+            </div>
+        </div>
     </div>
     <div id="helpModal" class="modal">
         <div class="modal-content">
             <span id="helpModalClose" class="close">&times;</span>
             <h2 style="margin-top: 0;">How to use this tool</h2>
-                <p>Welcome to the Multipole Calculator! This tool helps you determine allowed magnetic or electric multipoles for atoms in a crystal based on symmetry.</p>
+                <p>Welcome to Mag Sym Multipoles! This tool helps you determine allowed magnetic or electric multipoles for atoms in a crystal based on symmetry.</p>
             <div class="help-step">
                 <h3>Step 1: Select a Magnetic Space Group</h3>
                     <p>Start by identifying the <strong>Magnetic Space Group (MSG)</strong> or conventional space group of your crystal structure. You can:</p>
                 <ul>
                     <li>Type the <strong>BNS number</strong> (e.g., "1.1" or "62.448") in the input box.</li>
                     <li>Or select the group directly from the dropdown list.</li>
+                    <li>Optionally click <strong>Import .mcif</strong> to load the group and cell parameters from a file.</li>
                 </ul>
             </div>
             
@@ -329,19 +382,27 @@
             </div>
             
             <div class="help-step">
-                <h3>Step 3: Set Maximum Rank</h3>
-                <p>Decide the highest <strong>multipole rank</strong> you want to calculate:</p>
+                <h3>Step 3: Choose Mode & Options</h3>
+                <p>Select the <strong>Type</strong> (Magnetic or Electric) and configure the display options:</p>
                 <ul>
-                    <li><strong>Rank 1:</strong> Magnetic Dipole (Vector)</li>
-                    <li><strong>Rank 2:</strong>  Magnetic Quadrupole</li>
-                    <li><strong>Rank 3:</strong> Magnetic Octupole</li>
+                    <li><strong>Type:</strong> Magnetic applies axial/time-odd parity, Electric treats tensors as polar/time-even.</li>
+                    <li><strong>Include SOC:</strong> Toggle spin–orbit coupling for magnetic mode.</li>
+                    <li><strong>Voigt Notation:</strong> Simplify higher-rank tensor display.</li>
+                    <li><strong>Show label definitions:</strong> Expand or hide coefficient legend text.</li>
                 </ul>
-                <p>Higher ranks reveal more complex magnetic distributions allowed by the crystal symmetry.</p>
             </div>
             
             <div class="help-step">
-                <h3>Step 4: Interpret Results</h3>
-                    <h3>Step 4: Interpret Results</h3>
+                <h3>Step 4: Visualize a Pure Rank</h3>
+                <p>Enable the <strong>Visualizer</strong> switch and choose a pure rank from the menu (Dipole, Quadrupole, Octupole, etc.).</p>
+                <ul>
+                    <li>The <strong>Orbit Viewer</strong> shows the atomic orbit and the isosurface for the selected rank.</li>
+                    <li>Use <strong>Export Image (PNG)</strong> to save a snapshot.</li>
+                </ul>
+            </div>
+
+            <div class="help-step">
+                <h3>Step 5: Interpret Results</h3>
                 <ul>
                     <li><strong>Site Symmetry Operations:</strong> Lists the specific rotations and mirrors that leave the atomic site invariant.</li>
                     <li><strong>Allowed Multipoles:</strong> Shows the mathematical form of the allowed tensor. Variables (e.g., <span style="color:hsl(0, 80%, 35%)">x</span>, <span style="color:hsl(137, 80%, 35%)">z</span>) represent independent degrees of freedom.</li>
@@ -351,7 +412,7 @@
                                 <li><span style="color: #0d47a1; background: #e3f2fd; padding: 2px 4px; border-radius: 3px;">Blue (DOWN)</span>: Magnetic/electric multipole is antiparallel to Atom 1.</li>
                                 <li><strong>Group badge</strong>: Shows `Group N` for groups with more than one member. Badge color indicates group relations: green = all members parallel, red = contains antiparallel members, neutral = non-collinear.</li>
                                 <li><strong>Ordering summary</strong>: The panel shows an overall ordering label derived from group relations (e.g., `Ferroically Order`, `Anti-Ferroically Order`, `Mixed / Non-collinear ordering`, or `NCL order`).</li>
-                                <li><strong>Type toggle</strong>: Use the <em>Type</em> radio control to switch between Magnetic and Electric multipoles. Magnetic mode applies the axial/time-odd parity factor; Electric mode treats tensors as polar/time-even.</li>
+                                <li><strong>Type menu</strong>: Use the <em>Type</em> menu to switch between Magnetic and Electric multipoles.</li>
                                 <li><strong>Sublattice translation</strong>: For Rank-1 dipoles the tool attempts to find a pure-translation symmetry mapping the `Same` sublattice to the `Opposite` sublattice and displays the fractional translation `t` when found.</li>
                         </ul>
                     </li>

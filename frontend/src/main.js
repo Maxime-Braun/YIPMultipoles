@@ -2510,10 +2510,10 @@ async function populateWyckoff(idx) {
                         summaryDiv.style.fontWeight = '700';
                         summaryDiv.style.marginTop = '8px';
                         if (overallStatus === 'ferro') {
-                            summaryDiv.innerText = 'Ferroically Order';
+                            summaryDiv.innerText = 'Ferroic Order';
                             summaryDiv.style.color = '#1b5e20';
                         } else if (overallStatus === 'antiferro') {
-                            summaryDiv.innerText = 'Anti-Ferroically Order';
+                            summaryDiv.innerText = 'Anti-Ferroic Order';
                             summaryDiv.style.color = '#b71c1c';
                         } else if (overallStatus === 'mixed') {
                             summaryDiv.innerText = 'Mixed / Non-collinear ordering';
@@ -4496,6 +4496,43 @@ function buildSiteYlmSliders(fullRank, basis) {
     }
   }
 
+  const orbitalLabel = (lVal, mVal) => {
+    const labels = {
+      0: { 0: "s" },
+      1: { "-1": "p<sub>y</sub>", 0: "p<sub>z</sub>", 1: "p<sub>x</sub>" },
+      2: {
+        "-2": "d<sub>xy</sub>",
+        "-1": "d<sub>yz</sub>",
+        0: "d<sub>z<sup>2</sup></sub>",
+        1: "d<sub>xz</sub>",
+        2: "d<sub>x<sup>2</sup>-y<sup>2</sup></sub>"
+      },
+      3: {
+        "-3": "f<sub>y(3x<sup>2</sup>-y<sup>2</sup>)</sub>",
+        "-2": "f<sub>xyz</sub>",
+        "-1": "f<sub>yz<sup>2</sup></sub>",
+        0: "f<sub>z<sup>3</sup></sub>",
+        1: "f<sub>xz<sup>2</sup></sub>",
+        2: "f<sub>z(x<sup>2</sup>-y<sup>2</sup>)</sub>",
+        3: "f<sub>x(x<sup>2</sup>-3y<sup>2</sup>)</sub>"
+      },
+      4: {
+        "-4": "g<sub>xy(x<sup>2</sup>-y<sup>2</sup>)</sub>",
+        "-3": "g<sub>y(3x<sup>2</sup>-y<sup>2</sup>)z</sub>",
+        "-2": "g<sub>xyz<sup>2</sup></sub>",
+        "-1": "g<sub>yz<sup>3</sup></sub>",
+        0: "g<sub>z<sup>4</sup></sub>",
+        1: "g<sub>xz<sup>3</sup></sub>",
+        2: "g<sub>z<sup>2</sup>(x<sup>2</sup>-y<sup>2</sup>)</sub>",
+        3: "g<sub>x(x<sup>2</sup>-3y<sup>2</sup>)z</sub>",
+        4: "g<sub>x<sup>4</sup>+y<sup>4</sup></sub>"
+      }
+    };
+
+    const label = labels[lVal]?.[mVal] ?? labels[lVal]?.[String(mVal)];
+    return label || `l=${lVal}, m=${mVal}`;
+  };
+
   // === Build sliders for ALL allowed harmonics ===
   let currentL = null;
   for (let i = 0; i < allowed.length; i++) {
@@ -4517,9 +4554,9 @@ function buildSiteYlmSliders(fullRank, basis) {
     row.style.margin = '4px 0';
 
     const label = document.createElement('div');
-    label.style.width = '70px';
+    label.style.width = '160px';
     label.style.fontFamily = 'monospace';
-    label.innerText = `Y(${l},${m})`;
+    label.innerHTML = `Y(${l},${m}) ${orbitalLabel(l, m)}`;
 
     const slider = document.createElement('input');
     slider.type = 'range';
