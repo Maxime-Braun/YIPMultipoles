@@ -3,41 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Magnetic Multipole Calculator</title>
+    <title>Mag Sym Multipoles</title>
     <link rel="icon" type="image/png" href="/favicon.png">
     <style>
     body { font-family: sans-serif; padding: 20px; }
     .container { max-width: 1200px; margin: 0 auto; }
     .controls { margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px; }
         select, button, input { padding: 8px; margin-right: 10px; }
-        .header-bar {
+        .controls-header {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
+            justify-content: flex-start;
             gap: 16px;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
             flex-wrap: wrap;
         }
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 14px;
+        .controls-header .controls-row {
+            margin-bottom: 0;
         }
-        .header-title img {
-            height: 140px;
+        .header-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1 1 520px;
+            min-width: 320px;
+        }
+        .header-logo {
+            height: 120px;
             width: auto;
             display: block;
-        }
-        .mcif-atom-header {
-            flex-basis: 100%;
-            width: 100%;
-            padding: 8px 10px;
-            border: 1px solid #e6e6e6;
-            border-radius: 6px;
-            background: #ffffff;
-            color: #333;
-            font-size: 0.95em;
-            display: none;
         }
         .controls-row {
             display: flex;
@@ -204,94 +198,133 @@
         border: 1px solid rgba(255,255,255,0.08);
         margin-top: 10px;
         }
+        .logo-footer {
+        margin-top: 28px;
+        padding: 0px 0px;
+        background: #ffffff;
+        border: 1px dashed #ffffff;
+        border-radius: 10px;
+        }
+        .logo-footer h3 {
+        margin: 0 0 12px 0;
+        font-size: 1.05em;
+        color: #ffffff;
+        }
+        .logo-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        align-items: center;
+        justify-content: center;
+        }
+        .logo-placeholder {
+        width: 280px;
+        height: 140px;
+        border-radius: 8px;
+        border: 2px dashed #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.85em;
+        color: #ffffff;
+        background: #fff;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        }
+        .logo-placeholder img {
+        max-height: 104px;
+        max-width: 240px;
+        width: auto;
+        height: auto;
+        display: block;
+        }
+        .logo-neel {
+        max-height: 56px;
+        }
     </style>
     
-  <script type="module" crossorigin src="/assets/index-cK0tKIGK.js"></script>
+  <script type="module" crossorigin src="/assets/index-CCeU-BTn.js"></script>
 </head>
 <body>
     <div class="container">
-        <div class="header-bar">
-        <div class="header-title">
-        <img src="public/logo.png" alt="Multipole logo"/>
-        <h1 style="margin: 0;">Multipole Calculator</h1>
-    </div>
-    <a href="#" id="helpLink" style="text-decoration: none; font-size: 1.1em; color: #2196F3; display: flex; align-items: center;">
-    <span style="margin-right: 5px;">❓</span> Help / Tutorial
-    </a>
-
-    <div id="mcifAtomHeader" class="mcif-atom-header"></div>
-
-</div>       
         <div class="controls">
-            <div class="controls-row">
-                <label class="control-group">
-                    <span class="control-label">BNS No.:</span>
-                    <input type="text" id="groupNumberInput" placeholder="e.g. 1.1" style="width: 70px;">
-                </label>
-                <select id="groupSelect" style="max-width: 300px;"></select>
-                <button id="importMcifBtn" type="button">Import .mcif</button>
-                <label class="control-group">
-                    <span class="control-label">Wyckoff:</span>
-                    <select id="wyckoffSelect" style="max-width: 200px;"></select>
-                </label>
-                <input id="mcifFileInput" type="file" accept=".mcif,.cif,.txt" style="display: none;" />
+            <div class="controls-header">
+                <img class="header-logo" src="public/logo.png" alt="Multipole logo"/>
+                <div class="header-controls">
+                    <div class="controls-row">
+                        <label class="control-group">
+                            <span class="control-label">BNS No.:</span>
+                            <input type="text" id="groupNumberInput" placeholder="e.g. 1.1" style="width: 70px;">
+                        </label>
+                        <select id="groupSelect" style="max-width: 300px;"></select>
+                        <button id="importMcifBtn" type="button">Import .mcif</button>
+                        <label class="control-group">
+                            <span class="control-label">Wyckoff:</span>
+                            <select id="wyckoffSelect" style="max-width: 200px;"></select>
+                        </label>
+                        <input id="mcifFileInput" type="file" accept=".mcif,.cif,.txt" style="display: none;" />
+                    </div>
+                    <div class="controls-row">
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="crystalBasisSwitch">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">Crystal Basis</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="includeSocSwitch" checked>
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">SOC</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="voigtCheck">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">Voigt Notation</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="showLabelDefsSwitch">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">Label Def.</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="control-label" for="multipoleTypeSelect">Type:</label>
+                            <select id="multipoleTypeSelect" style="max-width: 140px;">
+                                <option value="magnetic" selected>Magnetic</option>
+                                <option value="electric">Electric</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="visualizerSwitch">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">Visualizer</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="control-label" for="rankIsoSelect">Pure rank:</label>
+                            <select id="rankIsoSelect" style="max-width: 180px;">
+                                <option value="1" selected>Dipole (Rank 1)</option>
+                                <option value="2">Quadrupole (Rank 2)</option>
+                                <option value="3">Octupole (Rank 3)</option>
+                                <option value="4">Hexadecapole (Rank 4)</option>
+                                <option value="5">Triakontadipole (Rank 5)</option>
+                            </select>
+                        </div>
+                        <button id="exportSceneBtn" type="button">Export Image (PNG)</button>
+                    </div>
+                </div>
+                <a href="#" id="helpLink" style="text-decoration: none; font-size: 1.1em; color: #2196F3; display: flex; align-items: center;">
+                <span style="margin-right: 5px;">❓</span> Help / Tutorial
+                </a>
             </div>
-            <div class="controls-row">
-                <div class="control-group">
-                    <label class="switch" style="margin-bottom: 0;">
-                        <input type="checkbox" id="crystalBasisSwitch">
-                        <span class="slider"></span>
-                    </label>
-                    <span class="control-label">Crystal Basis</span>
-                </div>
-                <div class="control-group">
-                    <label class="switch" style="margin-bottom: 0;">
-                        <input type="checkbox" id="visualizerSwitch">
-                        <span class="slider"></span>
-                    </label>
-                    <span class="control-label">Visualizer</span>
-                </div>
-                <div class="control-group">
-                    <label class="switch" style="margin-bottom: 0;">
-                        <input type="checkbox" id="voigtCheck">
-                        <span class="slider"></span>
-                    </label>
-                    <span class="control-label">Voigt Notation</span>
-                </div>
-                <div class="control-group">
-                    <label class="switch" style="margin-bottom: 0;">
-                        <input type="checkbox" id="showLabelDefsSwitch">
-                        <span class="slider"></span>
-                    </label>
-                    <span class="control-label">Show label definitions</span>
-                </div>
-                <div class="control-group">
-                    <label class="control-label" for="multipoleTypeSelect">Type:</label>
-                    <select id="multipoleTypeSelect" style="max-width: 140px;">
-                        <option value="magnetic" selected>Magnetic</option>
-                        <option value="electric">Electric</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label class="switch" style="margin-bottom: 0;">
-                        <input type="checkbox" id="includeSocSwitch" checked>
-                        <span class="slider"></span>
-                    </label>
-                    <span class="control-label">Include SOC</span>
-                </div>
-                </div>
                 <div id="visualizerPanel" style="display:none;">
-                <div id="rankIsoBox" style="margin:10px 0; padding:10px; background:#f5f5f5; border-radius:8px; display:flex; align-items:center; gap:12px; flex-wrap: wrap;">
-                <label style="font-weight:600; margin-right:8px;">Pure rank visualized:</label>
-                <select id="rankIsoSelect" style="max-width: 180px;">
-                    <option value="1" selected>Dipole (Rank 1)</option>
-                    <option value="2">Quadrupole (Rank 2)</option>
-                    <option value="3">Octupole (Rank 3)</option>
-                    <option value="4">Hexadecapole (Rank 4)</option>
-                    <option value="5">Triakontadipole (Rank 5)</option>
-                </select>
-                </div>
-                <button id="exportSceneBtn" type="button">Export Image (PNG)</button>
                 <div id="viewer3d"></div>
                 <div id="atom-tooltip" style="
                 position: fixed;
@@ -312,20 +345,27 @@
                     <b>Spherical harmonic weights</b>
                     <div id="tensor-sliders" style="margin-top:8px;"></div>
                     <div id="tensor-forbidden" style="margin-top:6px; color:#b00020; font-weight:600; display:none;"></div>
-                </div>
-            </div> 
-       </div>
+                </div> 
+        </div>
     </div>
  </div>
     <div id="status"></div>
         <div id="results" class="results"></div> 
         <pre id="debugLog" style="font-family: monospace; background: #222; color: #eee; padding: 8px; display: none; white-space: pre-wrap; max-height: 240px; overflow: auto; margin-top: 12px;"></pre>
+        <div class="logo-footer" aria-label="Logo placeholder section">
+            <div class="logo-strip">
+                <div class="logo-placeholder"><img src="public/Neel.png" alt="Neel logo"/></div>
+                <div class="logo-placeholder"><img src="public/CNRS.png" alt="Crns logo"/></div>
+                <div class="logo-placeholder"><img src="public/ANR.png" alt="ANR logo"/></div>
+                <div class="logo-placeholder"><img src="public/PEPR.png" alt="PEPR logo"/></div>
+            </div>
+        </div>
     </div>
     <div id="helpModal" class="modal">
         <div class="modal-content">
             <span id="helpModalClose" class="close">&times;</span>
             <h2 style="margin-top: 0;">How to use this tool</h2>
-                <p>Welcome to the Multipole Calculator! This tool helps you determine allowed magnetic or electric multipoles for atoms in a crystal based on symmetry.</p>
+                <p>Welcome to Mag Sym Multipoles! This tool helps you determine allowed magnetic or electric multipoles for atoms in a crystal based on symmetry.</p>
             <div class="help-step">
                 <h3>Step 1: Select a Magnetic Space Group</h3>
                     <p>Start by identifying the <strong>Magnetic Space Group (MSG)</strong> or conventional space group of your crystal structure. You can:</p>
@@ -387,7 +427,7 @@
             <span id="cellParamsClose" class="close">&times;</span>
             <h2 style="margin-top: 0;">Enter Cell Parameters</h2>
             <p id="cellParamsMsg">Please provide lattice parameters for this system.</p>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+            <div id="cellParamsGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
                 <label>a (Å): <input type="number" id="cell_a" step="0.001" value="1.0"></label>
                 <label>b (Å): <input type="number" id="cell_b" step="0.001" value="1.0"></label>
                 <label>c (Å): <input type="number" id="cell_c" step="0.001" value="1.0"></label>
@@ -395,7 +435,7 @@
                 <label>β (°): <input type="number" id="cell_beta" step="0.1" value="90.0"></label>
                 <label>γ (°): <input type="number" id="cell_gamma" step="0.1" value="90.0"></label>
             </div>
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <div id="cellParamsActions" style="display: flex; justify-content: flex-end; gap: 10px;">
                 <button id="cancelCellParamsBtn" style="padding: 8px 14px; background: #eee; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">Use defaults</button>
                 <button id="applyCellParamsBtn" style="padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;">Apply</button>
             </div>

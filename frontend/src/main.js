@@ -4978,8 +4978,8 @@ function renderTensorIsosurfacesFromHarmonics(rank, basis, spin = ACTIVE_SPIN) {
       geo,
       new THREE.MeshPhongMaterial({
         vertexColors: true,
-        transparent: false,
-        opacity: 0.8,
+        transparent: true,
+        opacity: 0.6,
         side: THREE.DoubleSide,
         shininess: 20,
         specular: new THREE.Color(0xffffff)
