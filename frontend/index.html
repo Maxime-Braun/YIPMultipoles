@@ -426,7 +426,7 @@
             <span id="cellParamsClose" class="close">&times;</span>
             <h2 style="margin-top: 0;">Enter Cell Parameters</h2>
             <p id="cellParamsMsg">Please provide lattice parameters for this system.</p>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+            <div id="cellParamsGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
                 <label>a (Å): <input type="number" id="cell_a" step="0.001" value="1.0"></label>
                 <label>b (Å): <input type="number" id="cell_b" step="0.001" value="1.0"></label>
                 <label>c (Å): <input type="number" id="cell_c" step="0.001" value="1.0"></label>
@@ -434,7 +434,7 @@
                 <label>β (°): <input type="number" id="cell_beta" step="0.1" value="90.0"></label>
                 <label>γ (°): <input type="number" id="cell_gamma" step="0.1" value="90.0"></label>
             </div>
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <div id="cellParamsActions" style="display: flex; justify-content: flex-end; gap: 10px;">
                 <button id="cancelCellParamsBtn" style="padding: 8px 14px; background: #eee; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">Use defaults</button>
                 <button id="applyCellParamsBtn" style="padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;">Apply</button>
             </div>

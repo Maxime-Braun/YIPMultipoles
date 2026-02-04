@@ -36,6 +36,7 @@ window.OrbitControls = OrbitControls;
   let CUSTOM_CELL_GLOBAL = null;
   let CUSTOM_CELL_GLOBAL_ENABLED = false;
   let MCIF_ATOM_VARS = null;
+  let MCIF_ATOM_SITES = null;
   let SUPPRESS_CELL_PARAM_MODAL_ONCE = false;
 
         function parseMcifValue(raw) {
@@ -43,6 +44,17 @@ window.OrbitControls = OrbitControls;
           const cleaned = String(raw).replace(/[\"']/g, "").trim();
           const val = parseFloat(cleaned);
           return Number.isFinite(val) ? val : null;
+        }
+
+        function parseMcifString(raw) {
+          if (!raw) return null;
+          return String(raw).replace(/[\"']/g, "").trim();
+        }
+
+        function tokenizeMcifRow(line) {
+          if (!line) return [];
+          const tokens = line.match(/'(?:[^']*)'|"(?:[^"]*)"|\S+/g);
+          return tokens ? tokens.map(t => t.trim()) : [];
         }
 
         function extractMcifRaw(text, tag) {
@@ -111,7 +123,7 @@ window.OrbitControls = OrbitControls;
                   if (dataLine.startsWith("_") || dataLine.toLowerCase() === "loop_" || dataLine.startsWith("data_")) {
                     break;
                   }
-                  const parts = dataLine.split(/\s+/);
+                  const parts = tokenizeMcifRow(dataLine);
                   if (parts.length >= headers.length) {
                     const x = parseMcifValue(parts[xIdx]);
                     const y = parseMcifValue(parts[yIdx]);
@@ -127,6 +139,84 @@ window.OrbitControls = OrbitControls;
             i += 1;
           }
           return null;
+        }
+
+        function parseMcifAtomSites(text) {
+          const lines = text.split(/\r?\n/);
+          let i = 0;
+          while (i < lines.length) {
+            const line = lines[i].trim();
+            if (line.toLowerCase() === "loop_") {
+              const headers = [];
+              i += 1;
+              while (i < lines.length) {
+                const hdr = lines[i].trim();
+                if (!hdr || hdr.startsWith("#")) {
+                  i += 1;
+                  continue;
+                }
+                if (!hdr.startsWith("_")) break;
+                headers.push(hdr);
+                i += 1;
+              }
+
+              const lowerHeaders = headers.map(h => h.toLowerCase());
+              const labelIdx = lowerHeaders.findIndex(h =>
+                h === "_atom_site_label" ||
+                h === "_atom_site_type_symbol" ||
+                h === "_atom_site_symbol"
+              );
+              const wyckoffIdx = lowerHeaders.findIndex(h =>
+                h === "_atom_site_wyckoff_symbol" ||
+                h === "_atom_site_wyckoff_letter" ||
+                h === "_atom_site_wyckoff"
+              );
+
+              if (labelIdx >= 0 && wyckoffIdx >= 0) {
+                const sites = [];
+                while (i < lines.length) {
+                  const dataLine = lines[i].trim();
+                  if (!dataLine || dataLine.startsWith("#")) {
+                    i += 1;
+                    continue;
+                  }
+                  if (dataLine.startsWith("_") || dataLine.toLowerCase() === "loop_" || dataLine.startsWith("data_")) {
+                    break;
+                  }
+                  const parts = tokenizeMcifRow(dataLine);
+                  if (parts.length >= headers.length) {
+                    const label = parseMcifString(parts[labelIdx]);
+                    const wyckoff = parseMcifString(parts[wyckoffIdx]);
+                    if (label && wyckoff) {
+                      sites.push({ label, wyckoff });
+                    }
+                  }
+                  i += 1;
+                }
+
+                if (sites.length > 0) return sites;
+              }
+            }
+            i += 1;
+          }
+          return [];
+        }
+
+        function renderMcifAtomHeader(atomSites) {
+          const header = document.getElementById("mcifAtomHeader");
+          if (!header) return;
+
+          if (!atomSites || atomSites.length === 0) {
+            header.innerHTML = "";
+            header.style.display = "none";
+            return;
+          }
+
+          const items = atomSites
+            .map(site => `${site.label}: ${site.wyckoff}`)
+            .join(", ");
+          header.textContent = `Atoms (Wyckoff): ${items}`;
+          header.style.display = "block";
         }
 
         function parseMcifCellParams(text) {
@@ -188,15 +278,41 @@ window.OrbitControls = OrbitControls;
           if (cellParamInputs.gamma) cellParamInputs.gamma.value = base.gamma;
         }
 
+        function setCellParamsModalMode(showInputs) {
+          const grid = document.getElementById("cellParamsGrid");
+          const actions = document.getElementById("cellParamsActions");
+          if (grid) grid.style.display = showInputs ? "grid" : "none";
+          if (actions) actions.style.display = showInputs ? "flex" : "none";
+        }
+
         function openCellParamsModal(system) {
           if (!cellParamsModal) return;
           CURRENT_CELL_PARAM_SYSTEM = system;
+          setCellParamsModalMode(true);
           if (cellParamsMsg) {
-            cellParamsMsg.textContent = system === "monoclinic"
-              ? "Monoclinic system detected. Enter lattice parameters (α, γ typically 90°)."
-              : "Triclinic system detected. Enter full lattice parameters.";
+            if (system === "monoclinic") {
+              cellParamsMsg.textContent =
+                "Monoclinic system detected. Enter lattice parameters (α, γ typically 90°).";
+            } else if (system === "hexagonal" || system === "trigonal") {
+              cellParamsMsg.textContent =
+                "Hexagonal setting required. Enter hexagonal cell parameters (a=b, α=β=90°, γ=120°).";
+            } else {
+              cellParamsMsg.textContent =
+                "Triclinic system detected. Enter full lattice parameters.";
+            }
           }
           setCellParamInputs(system);
+          showCellParamsError("");
+          cellParamsModal.style.display = "block";
+        }
+
+        function openCellParamsErrorModal(message) {
+          if (!cellParamsModal) return;
+          CURRENT_CELL_PARAM_SYSTEM = null;
+          setCellParamsModalMode(false);
+          if (cellParamsMsg) {
+            cellParamsMsg.textContent = message;
+          }
           showCellParamsError("");
           cellParamsModal.style.display = "block";
         }
@@ -205,6 +321,7 @@ window.OrbitControls = OrbitControls;
           if (!cellParamsModal) return;
           cellParamsModal.style.display = "none";
           showCellParamsError("");
+          setCellParamsModalMode(true);
         }
 
         function maybeOpenCellParamsModal(system) {
@@ -218,6 +335,11 @@ window.OrbitControls = OrbitControls;
         }
 
         function applyCellParams(system, params) {
+          if (system && system !== "triclinic" && system !== "monoclinic") {
+            applyGlobalCellParams(params);
+            closeCellParamsModal();
+            return;
+          }
           CUSTOM_CELL_PARAMS[system] = { ...params };
           CUSTOM_CELL_ENABLED[system] = true;
           if (currentGroup && currentGroup.name) {
@@ -253,6 +375,7 @@ window.OrbitControls = OrbitControls;
             if (!params) {
               const status = document.getElementById("status");
               if (status) status.innerText = "Could not read cell parameters from the mcif file.";
+              renderMcifAtomHeader(null);
               mcifFileInput.value = "";
               return;
             }
@@ -261,7 +384,10 @@ window.OrbitControls = OrbitControls;
             const groupInput = document.getElementById("groupNumberInput");
             const mcifGroup = parseMcifMagneticGroup(text);
             const mcifAtom = parseMcifAtomFract(text);
+            const mcifAtomSites = parseMcifAtomSites(text);
             MCIF_ATOM_VARS = mcifAtom ? { ...mcifAtom } : null;
+            MCIF_ATOM_SITES = mcifAtomSites ? [...mcifAtomSites] : null;
+            renderMcifAtomHeader(MCIF_ATOM_SITES);
 
             if (mcifGroup && groupInput) {
               groupInput.value = mcifGroup;
@@ -275,6 +401,27 @@ window.OrbitControls = OrbitControls;
             const system = currentGroup && currentGroup.name
               ? crystalSystemFromSGNumber(parseBNSNumberMajor(currentGroup.name))
               : null;
+
+            if (system === "hexagonal" || system === "trigonal") {
+              const near = (a, b, eps = 1e-2) => Math.abs(a - b) < eps;
+              const isHexCell =
+                near(params.a, params.b) &&
+                near(params.alpha, 90) &&
+                near(params.beta, 90) &&
+                near(params.gamma, 120);
+              if (!isHexCell) {
+                if (status) {
+                  status.innerText =
+                    "Group selected, but cell parameters were rejected. Please provide hexagonal cell parameters.";
+                }
+                openCellParamsErrorModal(
+                  "Hexagonal setting required. This mcif uses a rhombohedral/non-hexagonal cell. Please provide hexagonal cell parameters (a=b, α=β=90°, γ=120°)."
+                );
+                renderMcifAtomHeader(null);
+                mcifFileInput.value = "";
+                return;
+              }
+            }
 
             CUSTOM_CELL_PARAMS.triclinic = { ...params };
             CUSTOM_CELL_PARAMS.monoclinic = { ...params };
@@ -884,6 +1031,9 @@ async function populateWyckoff(idx) {
     // Multipole type select menu
     const multipoleTypeSelect = document.getElementById('multipoleTypeSelect');
     if (multipoleTypeSelect) {
+      if (multipoleTypeSelect.value !== multipoleMode) {
+        multipoleTypeSelect.value = multipoleMode;
+      }
       multipoleMode = multipoleTypeSelect.value || multipoleMode;
       multipoleTypeSelect.onchange = async () => {
         multipoleMode = multipoleTypeSelect.value;
@@ -2520,10 +2670,10 @@ async function populateWyckoff(idx) {
                         summaryDiv.style.fontWeight = '700';
                         summaryDiv.style.marginTop = '8px';
                         if (overallStatus === 'ferro') {
-                            summaryDiv.innerText = 'Ferroic Order';
+                            summaryDiv.innerText = 'Ferroically Order';
                             summaryDiv.style.color = '#1b5e20';
                         } else if (overallStatus === 'antiferro') {
-                            summaryDiv.innerText = 'Anti-Ferroic Order';
+                            summaryDiv.innerText = 'Anti-Ferroically Order';
                             summaryDiv.style.color = '#b71c1c';
                         } else if (overallStatus === 'mixed') {
                             summaryDiv.innerText = 'Mixed / Non-collinear ordering';
@@ -3034,11 +3184,35 @@ async function populateWyckoff(idx) {
         }
 
         function getIdealLatticeMatrix(group) {
+              if (CUSTOM_CELL_GLOBAL_ENABLED && CUSTOM_CELL_GLOBAL) {
+                const basis = latticeBasisFromParams(CUSTOM_CELL_GLOBAL);
+                if (basis) {
+                  return [
+                    [basis.a[0], basis.b[0], basis.c[0]],
+                    [basis.a[1], basis.b[1], basis.c[1]],
+                    [basis.a[2], basis.b[2], basis.c[2]]
+                  ];
+                }
+              }
             // Determine system from group number
             const name = group.name; 
             const match = name.match(/BNS:\s*(\d+)\./);
             let num = 1;
             if (match) num = parseInt(match[1]);
+
+            const system = crystalSystemFromSGNumber(num);
+            if ((system === "triclinic" || system === "monoclinic") &&
+                CUSTOM_CELL_ENABLED && CUSTOM_CELL_ENABLED[system]) {
+                const custom = CUSTOM_CELL_PARAMS && CUSTOM_CELL_PARAMS[system];
+                const basis = custom ? latticeBasisFromParams(custom) : null;
+                if (basis) {
+                    return [
+                        [basis.a[0], basis.b[0], basis.c[0]],
+                        [basis.a[1], basis.b[1], basis.c[1]],
+                        [basis.a[2], basis.b[2], basis.c[2]]
+                    ];
+                }
+            }
             
             let a=1, b=1, c=1;
             let alpha=90, beta=90, gamma=90;
@@ -3776,23 +3950,23 @@ function transformSpatialTensorToCartesian(tensorFlat, rank, M) {
 // Derive the spatial tensor used for harmonic projection.
 // For spatialRank=0, compute the cartesian component (Mx/My/Mz) from the full rank-1 tensor.
 function getSpatialTensorForProjection(fullRank, spin, tensorFlat, M) {
-  const mode = (typeof multipoleMode !== "undefined") ? multipoleMode : "electric";
+  const mode = document.getElementById('multipoleTypeSelect')?.value || 'magnetic';
 
   // Generic handling: Transform the full tensor from Fractional to Cartesian first.
-  // This ensures that when we slice by 'spin' (magnetic mode), we are selecting Cartesian components (x,y,z)
+  // This ensures that when we slice by 'spin', we are selecting Cartesian components (x,y,z)
   // rather than Fractional components (a,b,c).
   // This is crucial for non-cubic systems where fractional components do not correspond to orthogonal axes.
   const cartTensor = transformSpatialTensorToCartesian(tensorFlat, fullRank, M);
 
-  if (mode === "magnetic") {
-    // After transforming, the first index (spin) corresponds to Cartesian X, Y, Z.
-    const spatialCart = sliceSpinComponent(cartTensor, fullRank, spin);
-    const spatialRank = Math.max(0, fullRank - 1);
-    return { spatialRank, spatialTensor: spatialCart };
+  if (mode !== 'magnetic') {
+    return { spatialRank: fullRank, spatialTensor: cartTensor };
   }
 
-  // Electric multipoles do not include a spin index; keep the full rank.
-  return { spatialRank: fullRank, spatialTensor: cartTensor };
+  // After transforming, the first index (spin) corresponds to Cartesian X, Y, Z.
+  const spatialCart = sliceSpinComponent(cartTensor, fullRank, spin);
+  
+  const spatialRank = Math.max(0, fullRank - 1);
+  return { spatialRank, spatialTensor: spatialCart };
 }
 
 function near(a, b, eps) { return Math.abs(a - b) < eps; }
@@ -4677,9 +4851,9 @@ function buildBlobGeometryFromWeights(harmonics, weights, scale = 0.14) {
 
   // --- colors: pure sign mapping (negative vs positive) ---
   const colors = [];
-  const mode = (typeof multipoleMode !== "undefined") ? multipoleMode : "electric";
-  const posColor = (mode === "electric") ? [0.98, 0.62, 0.12] : [1.0, 0.0, 0.0];
-  const negColor = (mode === "electric") ? [0.12, 0.62, 0.68] : [0.0, 0.0, 1.0];
+  const mode = document.getElementById('multipoleTypeSelect')?.value || 'magnetic';
+  const posColor = (mode === 'electric') ? [0.98, 0.62, 0.12] : [1.0, 0.0, 0.0];
+  const negColor = (mode === 'electric') ? [0.12, 0.62, 0.68] : [0.0, 0.0, 1.0];
   for (let k = 0; k < svals.length; k++) {
     const isNeg = svals[k] < 0;
     const [r, g, b] = isNeg ? negColor : posColor;
