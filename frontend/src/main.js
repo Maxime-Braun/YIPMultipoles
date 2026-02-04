@@ -884,13 +884,23 @@ async function populateWyckoff(idx) {
     // Multipole type select menu
     const multipoleTypeSelect = document.getElementById('multipoleTypeSelect');
     if (multipoleTypeSelect) {
-      multipoleTypeSelect.onchange = () => {
-      multipoleMode = multipoleTypeSelect.value;
-      resetWyckoffSelectionAndClearViewer();
-      resetTensorSliderMemory();
+      multipoleMode = multipoleTypeSelect.value || multipoleMode;
+      multipoleTypeSelect.onchange = async () => {
+        multipoleMode = multipoleTypeSelect.value;
+        resetTensorStateForNewPosition();
 
-      document.getElementById("status").innerText =
-        "Mode changed — select a Wyckoff position…";
+        const wSel = document.getElementById("wyckoffSelect")?.value;
+        if (wSel) {
+          document.getElementById("status").innerText =
+            "Mode changed — recomputing…";
+          await triggerCompute();
+          updateOrbitViewer();
+        } else {
+          resetTensorSliderMemory();
+          clearIsoGroup();
+          document.getElementById("status").innerText =
+            "Mode changed — select a Wyckoff position…";
+        }
       };
     }
 
@@ -3766,17 +3776,23 @@ function transformSpatialTensorToCartesian(tensorFlat, rank, M) {
 // Derive the spatial tensor used for harmonic projection.
 // For spatialRank=0, compute the cartesian component (Mx/My/Mz) from the full rank-1 tensor.
 function getSpatialTensorForProjection(fullRank, spin, tensorFlat, M) {
+  const mode = (typeof multipoleMode !== "undefined") ? multipoleMode : "electric";
+
   // Generic handling: Transform the full tensor from Fractional to Cartesian first.
-  // This ensures that when we slice by 'spin', we are selecting Cartesian components (x,y,z)
+  // This ensures that when we slice by 'spin' (magnetic mode), we are selecting Cartesian components (x,y,z)
   // rather than Fractional components (a,b,c).
   // This is crucial for non-cubic systems where fractional components do not correspond to orthogonal axes.
   const cartTensor = transformSpatialTensorToCartesian(tensorFlat, fullRank, M);
 
-  // After transforming, the first index (spin) corresponds to Cartesian X, Y, Z.
-  const spatialCart = sliceSpinComponent(cartTensor, fullRank, spin);
-  
-  const spatialRank = Math.max(0, fullRank - 1);
-  return { spatialRank, spatialTensor: spatialCart };
+  if (mode === "magnetic") {
+    // After transforming, the first index (spin) corresponds to Cartesian X, Y, Z.
+    const spatialCart = sliceSpinComponent(cartTensor, fullRank, spin);
+    const spatialRank = Math.max(0, fullRank - 1);
+    return { spatialRank, spatialTensor: spatialCart };
+  }
+
+  // Electric multipoles do not include a spin index; keep the full rank.
+  return { spatialRank: fullRank, spatialTensor: cartTensor };
 }
 
 function near(a, b, eps) { return Math.abs(a - b) < eps; }
@@ -4659,14 +4675,14 @@ function buildBlobGeometryFromWeights(harmonics, weights, scale = 0.14) {
     }
   }
 
-  // --- colors: pure sign mapping (negative = blue, positive = red) ---
+  // --- colors: pure sign mapping (negative vs positive) ---
   const colors = [];
+  const mode = (typeof multipoleMode !== "undefined") ? multipoleMode : "electric";
+  const posColor = (mode === "electric") ? [0.98, 0.62, 0.12] : [1.0, 0.0, 0.0];
+  const negColor = (mode === "electric") ? [0.12, 0.62, 0.68] : [0.0, 0.0, 1.0];
   for (let k = 0; k < svals.length; k++) {
-    const s = svals[k];
-    const isNeg = s < 0;
-    const r = isNeg ? 0.0 : 1.0;
-    const g = 0.0;
-    const b = isNeg ? 1.0 : 0.0;
+    const isNeg = svals[k] < 0;
+    const [r, g, b] = isNeg ? negColor : posColor;
     colors.push(r, g, b);
   }
 
