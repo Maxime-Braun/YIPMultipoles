@@ -16,6 +16,7 @@ window.OrbitControls = OrbitControls;
         const cellParamsCancelBtn = document.getElementById("cancelCellParamsBtn");
         const cellParamsMsg = document.getElementById("cellParamsMsg");
         const cellParamsError = document.getElementById("cellParamsError");
+  const cellParamsTitle = document.getElementById("cellParamsTitle");
   const magneticSitesModal = document.getElementById("magneticSitesModal");
   const magneticSitesClose = document.getElementById("magneticSitesClose");
   const magneticSitesApplyBtn = document.getElementById("magneticSitesApplyBtn");
@@ -597,6 +598,9 @@ window.OrbitControls = OrbitControls;
           if (!cellParamsModal) return;
           CURRENT_CELL_PARAM_SYSTEM = system;
           setCellParamsModalMode(true);
+          if (cellParamsTitle) {
+            cellParamsTitle.textContent = "Enter Cell Parameters";
+          }
           if (cellParamsMsg) {
             if (system === "monoclinic") {
               cellParamsMsg.textContent =
@@ -618,6 +622,9 @@ window.OrbitControls = OrbitControls;
           if (!cellParamsModal) return;
           CURRENT_CELL_PARAM_SYSTEM = null;
           setCellParamsModalMode(false);
+          if (cellParamsTitle) {
+            cellParamsTitle.textContent = "Cell parameters required";
+          }
           if (cellParamsMsg) {
             cellParamsMsg.textContent = message;
           }
@@ -675,6 +682,7 @@ window.OrbitControls = OrbitControls;
           if (!magneticSitesList) return;
           magneticSitesList.innerHTML = "";
           if (!group || !Array.isArray(group.wyckoff)) return;
+          const showIndex = Array.isArray(MCIF_ATOM_SITES) && MCIF_ATOM_SITES.length > 0;
           const selected = new Set((MAGNETIC_OCCUPIED_SITES || []).map(v => String(v).toLowerCase()));
           group.wyckoff.forEach((wyck, idx) => {
             const label = wyck.label || `#${idx}`;
@@ -688,7 +696,7 @@ window.OrbitControls = OrbitControls;
               checkbox.checked = true;
             }
             const text = document.createElement("span");
-            text.textContent = `${label} (index ${idx})`;
+            text.textContent = showIndex ? `${label} (index ${idx})` : `${label}`;
             row.appendChild(checkbox);
             row.appendChild(text);
             magneticSitesList.appendChild(row);
@@ -841,6 +849,9 @@ window.OrbitControls = OrbitControls;
                 openCellParamsErrorModal(
                   "Hexagonal setting required. This mcif uses a rhombohedral/non-hexagonal cell. Please provide hexagonal cell parameters (a=b, α=β=90°, γ=120°)."
                 );
+                if (cellParamsTitle) {
+                  cellParamsTitle.textContent = "Rhombohedral cell detected";
+                }
                 renderMcifAtomHeader(null);
                 mcifFileInput.value = "";
                 return;
