@@ -233,6 +233,36 @@ def compute_multipoles(
     return basis
 
 
+def _apply_op_to_tensor(vec: Sequence[float], rank: int, R: Sequence[Sequence[float]]) -> np.ndarray:
+    if rank <= 0:
+        return np.array(vec, dtype=float)
+    kron = np.array(R, dtype=float)
+    for _ in range(rank - 1):
+        kron = np.kron(kron, R)
+    return kron @ np.array(vec, dtype=float)
+
+
+def _coord_close(a: Sequence[float], b: Sequence[float], tol: float = 1e-4) -> bool:
+    return all(abs(x - y) < tol or abs(x - y - 1) < tol or abs(x - y + 1) < tol for x, y in zip(a, b))
+
+
+def _get_orbit_ops(group: Dict[str, Any], wyckoff: Dict[str, Any], tol: float = 1e-4) -> List[Dict[str, Any]]:
+    ops = group.get("operators", [])
+    coord_str = wyckoff.get("coord", "")
+    base = _parse_coord_triplet(coord_str, 0.123, 0.234, 0.345)
+    base = [_frac01(v) for v in base]
+    seen: List[List[float]] = []
+    orbit_ops: List[Dict[str, Any]] = []
+    for op in ops:
+        coord = vec_add(matvec(op["R"], base), op.get("t", [0, 0, 0]))
+        coord = [_frac01(v) for v in coord]
+        if any(_coord_close(coord, s, tol) for s in seen):
+            continue
+        seen.append(coord)
+        orbit_ops.append(op)
+    return orbit_ops
+
+
 
 # --------------------------
 # No-SOC magnetic algorithm
@@ -289,6 +319,223 @@ def _find_matching_wyckoff(nuclear_group: Dict[str, Any], wyckoff: Dict[str, Any
             return w
 
     return None
+
+def _normalize_frac_vec(v: Sequence[float]) -> List[float]:
+    out: List[float] = []
+    for x in v:
+        y = x - math.floor(x + 1e-6)
+        if abs(y - 1.0) < 1e-6:
+            y = 0.0
+        out.append(y)
+    return out
+
+def _coords_match(a: Sequence[float], b: Sequence[float], eps: float = 1e-4) -> bool:
+    diff = [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+    return (
+        abs(diff[0] - round(diff[0])) < eps and
+        abs(diff[1] - round(diff[1])) < eps and
+        abs(diff[2] - round(diff[2])) < eps
+    )
+
+def filter_nuclear_group_ops_by_alignment(
+    db_all: Optional[Sequence[Dict[str, Any]]],
+    group: Dict[str, Any],
+    atoms: Sequence[Union[Sequence[float], Dict[str, Any]]],
+    alignment_groups: Sequence[Union[Dict[str, Any], Sequence[int]]],
+    eps: float = 1e-4,
+) -> List[Dict[str, Any]]:
+    """
+    Apply all symmetry operations of the nuclear group (first group with same
+    OG integer) and return only those ops that:
+    1) Map atoms within the same alignment group, OR
+    2) Induce a bijective permutation of the alignment groups.
+    """
+    og_int = _parse_og_integer(group.get("name", ""))
+    nuclear_group = _find_nuclear_group(db_all, og_int)
+    if not nuclear_group:
+        return []
+
+    ops = nuclear_group.get("operators", [])
+    if not ops or not atoms or not alignment_groups:
+        return []
+
+    coords: List[List[float]] = []
+    for a in atoms:
+        if isinstance(a, dict):
+            coord = a.get("coord")
+        else:
+            coord = a
+        if not coord or len(coord) < 3:
+            return []
+        coords.append([float(coord[0]), float(coord[1]), float(coord[2])])
+
+    groups_list: List[List[int]] = []
+    for g in alignment_groups:
+        if isinstance(g, dict):
+            members = g.get("members") or []
+        else:
+            members = g
+        groups_list.append([int(m) for m in members])
+
+    index_to_group: Dict[int, int] = {}
+    for gi, members in enumerate(groups_list):
+        for m in members:
+            index_to_group[m] = gi
+
+    accepted_ops: List[Dict[str, Any]] = []
+
+    for op in ops:
+        mapped_indices: List[int] = []
+        valid = True
+        for i, coord in enumerate(coords):
+            mapped = matvec(op["R"], coord)
+            mapped = vec_add(mapped, op.get("t", [0.0, 0.0, 0.0]))
+            mapped = _normalize_frac_vec(mapped)
+
+            target_idx = None
+            for j, target in enumerate(coords):
+                if _coords_match(mapped, target, eps=eps):
+                    target_idx = j
+                    break
+            if target_idx is None:
+                valid = False
+                break
+            mapped_indices.append(target_idx)
+
+        if not valid:
+            continue
+
+        # 1) Check same-group preservation
+        preserves_groups = True
+        for i, j in enumerate(mapped_indices):
+            if index_to_group.get(i) != index_to_group.get(j):
+                preserves_groups = False
+                break
+        if preserves_groups:
+            accepted_ops.append(op)
+            continue
+
+        # 2) Check bijective permutation of groups
+        group_map: Dict[int, int] = {}
+        bijective = True
+        for gi, members in enumerate(groups_list):
+            target_group = None
+            for m in members:
+                mapped_idx = mapped_indices[m]
+                tg = index_to_group.get(mapped_idx)
+                if tg is None:
+                    bijective = False
+                    break
+                if target_group is None:
+                    target_group = tg
+                elif target_group != tg:
+                    bijective = False
+                    break
+            if not bijective:
+                break
+            group_map[gi] = target_group if target_group is not None else -1
+
+        if not bijective:
+            continue
+
+        if len(set(group_map.values())) != len(groups_list):
+            continue
+
+        accepted_ops.append(op)
+
+    return accepted_ops
+
+
+def build_group_permutation_matrices(
+    ops: Sequence[Dict[str, Any]],
+    atoms: Sequence[Union[Sequence[float], Dict[str, Any]]],
+    alignment_groups: Sequence[Union[Dict[str, Any], Sequence[int]]],
+    eps: float = 1e-4,
+) -> List[List[List[int]]]:
+    """Return a permutation matrix (n_groups x n_groups) for each accepted op."""
+    if not ops or not atoms or not alignment_groups:
+        return []
+
+    coords: List[List[float]] = []
+    for a in atoms:
+        if isinstance(a, dict):
+            coord = a.get("coord")
+        else:
+            coord = a
+        if not coord or len(coord) < 3:
+            return []
+        coords.append([float(coord[0]), float(coord[1]), float(coord[2])])
+
+    groups_list: List[List[int]] = []
+    for g in alignment_groups:
+        if isinstance(g, dict):
+            members = g.get("members") or []
+        else:
+            members = g
+        groups_list.append([int(m) for m in members])
+
+    index_to_group: Dict[int, int] = {}
+    for gi, members in enumerate(groups_list):
+        for m in members:
+            index_to_group[m] = gi
+
+    matrices: List[List[List[int]]] = []
+
+    for op in ops:
+        mapped_indices: List[int] = []
+        valid = True
+        for coord in coords:
+            mapped = matvec(op["R"], coord)
+            mapped = vec_add(mapped, op.get("t", [0.0, 0.0, 0.0]))
+            mapped = _normalize_frac_vec(mapped)
+
+            target_idx = None
+            for j, target in enumerate(coords):
+                if _coords_match(mapped, target, eps=eps):
+                    target_idx = j
+                    break
+            if target_idx is None:
+                valid = False
+                break
+            mapped_indices.append(target_idx)
+
+        if not valid:
+            continue
+
+        group_map: Dict[int, int] = {}
+        bijective = True
+        for gi, members in enumerate(groups_list):
+            target_group = None
+            for m in members:
+                mapped_idx = mapped_indices[m]
+                tg = index_to_group.get(mapped_idx)
+                if tg is None:
+                    bijective = False
+                    break
+                if target_group is None:
+                    target_group = tg
+                elif target_group != tg:
+                    bijective = False
+                    break
+            if not bijective:
+                break
+            group_map[gi] = target_group if target_group is not None else -1
+
+        if not bijective:
+            continue
+        if len(set(group_map.values())) != len(groups_list):
+            continue
+
+        n = len(groups_list)
+        P = [[0 for _ in range(n)] for _ in range(n)]
+        for gi in range(n):
+            gj = group_map.get(gi)
+            if gj is None or gj < 0:
+                continue
+            P[gj][gi] = 1
+        matrices.append(P)
+
+    return matrices
 
 def _tensor_product_spin(electric_basis: List[List[float]], spin_vec: Sequence[float]) -> List[List[float]]:
     if not electric_basis:
@@ -356,6 +603,89 @@ def _compute_no_soc_basis(
 
     spin_vec = _soc_dipole_vector(compute_multipoles(rank=1, ops=ops_soc, multipole_mode="magnetic"))
     return [] if spin_vec is None else _tensor_product_spin(electric_basis, spin_vec)
+
+
+def _combine_basis_vectors(basis_list: Sequence[Sequence[float]], tol: float = 1e-8) -> List[List[float]]:
+    if not basis_list:
+        return []
+    mat = np.array(basis_list, dtype=float)
+    if mat.ndim != 2:
+        return []
+    try:
+        _, s, vh = np.linalg.svd(mat, full_matrices=False)
+    except np.linalg.LinAlgError:
+        return [list(v) for v in basis_list]
+    rank = int(np.sum(s > tol))
+    if rank <= 0:
+        return []
+    return [row.tolist() for row in vh[:rank]]
+
+
+def _sum_basis_vectors(basis_list: Sequence[Sequence[float]], tol: float = 1e-8) -> List[List[float]]:
+    if not basis_list:
+        return []
+    mat = np.array(basis_list, dtype=float)
+    if mat.ndim != 2:
+        return []
+    summed = np.sum(mat, axis=0)
+    if np.linalg.norm(summed) < tol:
+        return []
+    return [summed.tolist()]
+
+
+def _sum_basis_by_index(basis_sets: Sequence[Sequence[Sequence[float]]], tol: float = 1e-8) -> List[List[float]]:
+    if not basis_sets:
+        return []
+    max_len = max((len(b) for b in basis_sets), default=0)
+    if max_len == 0:
+        return []
+    dim = len(basis_sets[0][0]) if basis_sets[0] else 0
+    if dim == 0:
+        return []
+    summed: List[np.ndarray] = [np.zeros(dim, dtype=float) for _ in range(max_len)]
+    for basis in basis_sets:
+        for idx, vec in enumerate(basis):
+            if idx >= max_len:
+                break
+            summed[idx] += np.array(vec, dtype=float)
+    output: List[List[float]] = []
+    for vec in summed:
+        if np.linalg.norm(vec) >= tol:
+            output.append(vec.tolist())
+    return output
+
+
+def _align_and_sum_site_tensors(
+    basis_sets: Sequence[Sequence[Sequence[float]]],
+    tol: float = 1e-8,
+) -> List[List[float]]:
+    # Deprecated: keep for reference, but prefer _sum_basis_by_index for same-weight sums.
+    if not basis_sets:
+        return []
+    ref_basis = [np.array(v, dtype=float) for v in basis_sets[0]]
+    if not ref_basis:
+        return []
+    dim = len(ref_basis[0])
+    ref_mat = np.column_stack(ref_basis)
+    total_coeffs = np.zeros(len(ref_basis), dtype=float)
+
+    for basis in basis_sets:
+        if not basis:
+            continue
+        B = np.column_stack([np.array(v, dtype=float) for v in basis])
+        try:
+            coeffs, _, _, _ = np.linalg.lstsq(B, ref_mat, rcond=None)
+        except np.linalg.LinAlgError:
+            continue
+        total_coeffs += coeffs.sum(axis=1)
+
+    if np.linalg.norm(total_coeffs) < tol:
+        return []
+
+    summed_tensor = ref_mat @ total_coeffs
+    if np.linalg.norm(summed_tensor) < tol:
+        return []
+    return [summed_tensor.reshape(dim).tolist()]
 
 
 # --------------------------
@@ -431,6 +761,7 @@ def compute_results(
     mode: str = "magnetic",
     include_soc: bool = True,
     db_all: Optional[Sequence[Dict[str, Any]]] = None,
+    magnetic_sites: Optional[Sequence[str]] = None,
 ) -> Dict[str, Any]:
     site_ops_raw = get_site_ops(group, wyckoff)
     ops: List[Op] = []
@@ -441,17 +772,53 @@ def compute_results(
     ranks = []
     force_forbidden_all = False
 
+    magnetic_labels = None
+    if magnetic_sites:
+        magnetic_labels = {str(site).lower() for site in magnetic_sites}
+
     if not include_soc and mode == "magnetic":
-        soc_dipole = _soc_dipole_vector(
-            compute_multipoles(rank=1, ops=ops, multipole_mode="magnetic")
-        )
-        if soc_dipole is None:
-            force_forbidden_all = True
+        skip_force_forbidden = wyckoff is None and magnetic_labels
+        if not skip_force_forbidden:
+            soc_dipole = _soc_dipole_vector(
+                compute_multipoles(rank=1, ops=ops, multipole_mode="magnetic")
+            )
+            if soc_dipole is None:
+                force_forbidden_all = True
     for r in range(1, max_rank + 1):
         if force_forbidden_all:
             basis = []
         elif include_soc or mode != "magnetic":
             basis = compute_multipoles(rank=r, ops=ops, multipole_mode=mode)
+        elif wyckoff is None:
+            if magnetic_labels:
+                summed_basis: List[List[float]] = []
+                for w in group.get("wyckoff", []):
+                    label = str(w.get("label", "")).lower()
+                    if label not in magnetic_labels:
+                        continue
+                    site_ops = get_site_ops(group, w)
+                    ops_site = [Op(R=op["R"], tr=int(op.get("tr", 1)) or 1) for op in site_ops]
+                    basis_site = _compute_no_soc_basis(
+                        db_all=db_all,
+                        group=group,
+                        wyckoff=w,
+                        rank=r,
+                        ops_soc=ops_site,
+                    )
+                    if basis_site:
+                        orbit_ops = _get_orbit_ops(group, w)
+                        for vec in basis_site:
+                            total = np.zeros(len(vec), dtype=float)
+                            for op in orbit_ops:
+                                tr = int(op.get("tr", 1)) if op.get("tr", 1) is not None else 1
+                                detR = float(np.linalg.det(op["R"]))
+                                factor = tr * detR
+                                total += factor * _apply_op_to_tensor(vec, r, op["R"])
+                            if np.linalg.norm(total) > 1e-8:
+                                summed_basis.append(total.tolist())
+                basis = summed_basis
+            else:
+                basis = []
         else:
             basis = _compute_no_soc_basis(
                 db_all=db_all,

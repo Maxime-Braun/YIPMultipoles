@@ -16,6 +16,13 @@ window.OrbitControls = OrbitControls;
         const cellParamsCancelBtn = document.getElementById("cancelCellParamsBtn");
         const cellParamsMsg = document.getElementById("cellParamsMsg");
         const cellParamsError = document.getElementById("cellParamsError");
+  const magneticSitesModal = document.getElementById("magneticSitesModal");
+  const magneticSitesClose = document.getElementById("magneticSitesClose");
+  const magneticSitesApplyBtn = document.getElementById("magneticSitesApplyBtn");
+  const magneticSitesCancelBtn = document.getElementById("magneticSitesCancelBtn");
+  const magneticSitesList = document.getElementById("magneticSitesList");
+  const magneticSitesMsg = document.getElementById("magneticSitesMsg");
+  const magneticSitesError = document.getElementById("magneticSitesError");
         const importMcifBtn = document.getElementById("importMcifBtn");
         const mcifFileInput = document.getElementById("mcifFileInput");
         const cellParamInputs = {
@@ -37,11 +44,16 @@ window.OrbitControls = OrbitControls;
   let CUSTOM_CELL_GLOBAL_ENABLED = false;
   let MCIF_ATOM_VARS = null;
   let MCIF_ATOM_SITES = null;
+  let MCIF_ATOM_COORDS = null;
+  let MCIF_MAGNETIC_LABELS = null;
   let SUPPRESS_CELL_PARAM_MODAL_ONCE = false;
 
         function parseMcifValue(raw) {
           if (!raw) return null;
-          const cleaned = String(raw).replace(/[\"']/g, "").trim();
+          const cleaned = String(raw)
+            .replace(/["']/g, "")
+            .replace(/\([^)]*\)/g, "")
+            .trim();
           const val = parseFloat(cleaned);
           return Number.isFinite(val) ? val : null;
         }
@@ -141,6 +153,110 @@ window.OrbitControls = OrbitControls;
           return null;
         }
 
+        function parseMcifAtomCoords(text) {
+          const lines = text.split(/\r?\n/);
+          let i = 0;
+          while (i < lines.length) {
+            const line = lines[i].trim();
+            if (line.toLowerCase() === "loop_") {
+              const headers = [];
+              i += 1;
+              while (i < lines.length) {
+                const hdr = lines[i].trim();
+                if (!hdr || hdr.startsWith("#")) {
+                  i += 1;
+                  continue;
+                }
+                if (!hdr.startsWith("_")) break;
+                headers.push(hdr);
+                i += 1;
+              }
+              const lowerHeaders = headers.map(h => h.toLowerCase());
+              const labelIdx = lowerHeaders.findIndex(h =>
+                h === "_atom_site_label" ||
+                h === "_atom_site_type_symbol" ||
+                h === "_atom_site_symbol"
+              );
+              const xIdx = lowerHeaders.findIndex(h => h === "_atom_site_fract_x");
+              const yIdx = lowerHeaders.findIndex(h => h === "_atom_site_fract_y");
+              const zIdx = lowerHeaders.findIndex(h => h === "_atom_site_fract_z");
+              if (labelIdx >= 0 && xIdx >= 0 && yIdx >= 0 && zIdx >= 0) {
+                const sites = [];
+                while (i < lines.length) {
+                  const dataLine = lines[i].trim();
+                  if (!dataLine || dataLine.startsWith("#")) {
+                    i += 1;
+                    continue;
+                  }
+                  if (dataLine.startsWith("_") || dataLine.toLowerCase() === "loop_" || dataLine.startsWith("data_")) {
+                    break;
+                  }
+                  const parts = tokenizeMcifRow(dataLine);
+                  if (parts.length >= headers.length) {
+                    const label = parseMcifString(parts[labelIdx]);
+                    const x = parseMcifValue(parts[xIdx]);
+                    const y = parseMcifValue(parts[yIdx]);
+                    const z = parseMcifValue(parts[zIdx]);
+                    if (label && [x, y, z].every(v => v !== null)) {
+                      sites.push({ label, coord: [x, y, z] });
+                    }
+                  }
+                  i += 1;
+                }
+                if (sites.length > 0) return sites;
+              }
+            }
+            i += 1;
+          }
+          return [];
+        }
+
+        function parseMcifMagneticLabels(text) {
+          const lines = text.split(/\r?\n/);
+          let i = 0;
+          while (i < lines.length) {
+            const line = lines[i].trim();
+            if (line.toLowerCase() === "loop_") {
+              const headers = [];
+              i += 1;
+              while (i < lines.length) {
+                const hdr = lines[i].trim();
+                if (!hdr || hdr.startsWith("#")) {
+                  i += 1;
+                  continue;
+                }
+                if (!hdr.startsWith("_")) break;
+                headers.push(hdr);
+                i += 1;
+              }
+              const lowerHeaders = headers.map(h => h.toLowerCase());
+              const labelIdx = lowerHeaders.findIndex(h => h === "_atom_site_moment.label");
+              if (labelIdx >= 0) {
+                const labels = [];
+                while (i < lines.length) {
+                  const dataLine = lines[i].trim();
+                  if (!dataLine || dataLine.startsWith("#")) {
+                    i += 1;
+                    continue;
+                  }
+                  if (dataLine.startsWith("_") || dataLine.toLowerCase() === "loop_" || dataLine.startsWith("data_")) {
+                    break;
+                  }
+                  const parts = tokenizeMcifRow(dataLine);
+                  if (parts.length >= headers.length) {
+                    const label = parseMcifString(parts[labelIdx]);
+                    if (label) labels.push(label);
+                  }
+                  i += 1;
+                }
+                return labels;
+              }
+            }
+            i += 1;
+          }
+          return [];
+        }
+
         function parseMcifAtomSites(text) {
           const lines = text.split(/\r?\n/);
           let i = 0;
@@ -212,11 +328,203 @@ window.OrbitControls = OrbitControls;
             return;
           }
 
+          const formatLabel = (label) => {
+            if (!label) return "";
+            const match = String(label).match(/^(.*?)(\d+)$/);
+            if (!match) return String(label);
+            const base = match[1];
+            const digits = match[2];
+            return `${base}<sub>${digits}</sub>`;
+          };
+          const magneticLabels = Array.isArray(MCIF_MAGNETIC_LABELS)
+            ? new Set(MCIF_MAGNETIC_LABELS.map(l => String(l).toLowerCase()))
+            : new Set();
           const items = atomSites
-            .map(site => `${site.label}: ${site.wyckoff}`)
+            .map(site => {
+              const isMagnetic = site && site.label && magneticLabels.has(String(site.label).toLowerCase());
+              const labelHtml = formatLabel(site.label);
+              const labelSpan = isMagnetic
+                ? `<span style="color:#c62828; font-weight:700;">${labelHtml}</span>`
+                : labelHtml;
+              return `${labelSpan}: ${site.wyckoff}`;
+            })
             .join(", ");
-          header.textContent = `Atoms (Wyckoff): ${items}`;
+          header.innerHTML = `Atoms (Wyckoff): ${items}`;
           header.style.display = "block";
+        }
+
+        function parseWyckoffComponent(s) {
+          const res = { x: 0, y: 0, z: 0, c: 0 };
+          if (!s) return res;
+          let expr = s.replace(/\s+/g, '').toLowerCase();
+          let terms = expr.replace(/-/g, '+-').split('+').filter(t => t !== '');
+          terms.forEach(t => {
+            let coeff = 1;
+            if (t.startsWith('-')) {
+              coeff = -1;
+              t = t.substring(1);
+            }
+            if (t.startsWith('+')) t = t.substring(1);
+            if (t.includes('x')) {
+              let val = t.replace('x', '');
+              if (val === '') val = '1';
+              res.x += coeff * parseFloat(val);
+            } else if (t.includes('y')) {
+              let val = t.replace('y', '');
+              if (val === '') val = '1';
+              res.y += coeff * parseFloat(val);
+            } else if (t.includes('z')) {
+              let val = t.replace('z', '');
+              if (val === '') val = '1';
+              res.z += coeff * parseFloat(val);
+            } else if (t) {
+              if (t.includes('/')) {
+                const [n, d] = t.split('/');
+                res.c += coeff * (parseFloat(n) / parseFloat(d));
+              } else {
+                res.c += coeff * parseFloat(t);
+              }
+            }
+          });
+          return res;
+        }
+
+        function evalWyckoffComponent(comp, vars) {
+          return comp.x * vars.x + comp.y * vars.y + comp.z * vars.z + comp.c;
+        }
+
+        function normalizeFrac(val) {
+          let v = val - Math.floor(val + 1e-8);
+          if (Math.abs(v - 1.0) < 1e-6) v = 0.0;
+          return v;
+        }
+
+        function fracClose(a, b, tol = 1e-3) {
+          const diff = Math.abs(a - b);
+          return diff < tol || Math.abs(diff - 1) < tol;
+        }
+
+        function solveWyckoffVars(components, targetCoord) {
+          const A = components.map(c => [c.x, c.y, c.z]);
+          const b = components.map((c, i) => normalizeFrac(targetCoord[i] - c.c));
+          const det = det3x3(A);
+          if (Math.abs(det) > 1e-6) {
+            const shifts = [-1, 0, 1];
+            for (let dx of shifts) for (let dy of shifts) for (let dz of shifts) {
+              const bShift = [b[0] + dx, b[1] + dy, b[2] + dz];
+              const inv = invertMatrix3x3(A);
+              const vars = {
+                x: inv[0][0] * bShift[0] + inv[0][1] * bShift[1] + inv[0][2] * bShift[2],
+                y: inv[1][0] * bShift[0] + inv[1][1] * bShift[1] + inv[1][2] * bShift[2],
+                z: inv[2][0] * bShift[0] + inv[2][1] * bShift[1] + inv[2][2] * bShift[2]
+              };
+              if ([vars.x, vars.y, vars.z].every(v => isFinite(v))) {
+                return vars;
+              }
+            }
+          }
+          const vars = { x: 0, y: 0, z: 0 };
+          const solved = { x: false, y: false, z: false };
+          components.forEach((c, idx) => {
+            const coeffs = [c.x, c.y, c.z];
+            const nonZero = coeffs.filter(v => Math.abs(v) > 1e-6).length;
+            if (nonZero === 1) {
+              const val = normalizeFrac(targetCoord[idx] - c.c);
+              if (Math.abs(c.x) > 1e-6) {
+                vars.x = val / c.x;
+                solved.x = true;
+              } else if (Math.abs(c.y) > 1e-6) {
+                vars.y = val / c.y;
+                solved.y = true;
+              } else if (Math.abs(c.z) > 1e-6) {
+                vars.z = val / c.z;
+                solved.z = true;
+              }
+            }
+          });
+          if (solved.x || solved.y || solved.z) return vars;
+          return null;
+        }
+
+        function inferWyckoffLabelFromCoord(group, coord) {
+          if (!group || !Array.isArray(group.wyckoff)) return null;
+          const matches = [];
+          for (const w of group.wyckoff) {
+            if (!w || !w.coord) continue;
+            const parts = w.coord.split(',');
+            if (parts.length !== 3) continue;
+            const comps = parts.map(parseWyckoffComponent);
+            const vars = solveWyckoffVars(comps, coord);
+            let isMatch = false;
+            if (!vars) {
+              const fixed = comps.every((c, idx) =>
+                Math.abs(c.x) < 1e-6 && Math.abs(c.y) < 1e-6 && Math.abs(c.z) < 1e-6 &&
+                fracClose(normalizeFrac(c.c), normalizeFrac(coord[idx]))
+              );
+              isMatch = fixed;
+            } else {
+              const evalCoord = comps.map(c => normalizeFrac(evalWyckoffComponent(c, vars)));
+              const matchesCoord = evalCoord.every((v, idx) => fracClose(v, normalizeFrac(coord[idx])));
+              isMatch = matchesCoord;
+            }
+            if (isMatch) {
+              const label = w.label || '';
+              const multMatch = label.match(/^(\d+)/);
+              const multiplicity = multMatch ? parseInt(multMatch[1], 10) : Number.POSITIVE_INFINITY;
+              const varCount = comps.reduce((count, c) => {
+                const varsHere = [c.x, c.y, c.z].filter(v => Math.abs(v) > 1e-6).length;
+                return count + (varsHere > 0 ? 1 : 0);
+              }, 0);
+              matches.push({ label, multiplicity, varCount });
+            }
+          }
+          if (!matches.length) return null;
+          matches.sort((a, b) => {
+            if (a.multiplicity !== b.multiplicity) return a.multiplicity - b.multiplicity;
+            return a.varCount - b.varCount;
+          });
+          return matches[0].label || null;
+        }
+
+        function getMcifOccupiedMagneticSites() {
+          if (!MCIF_ATOM_SITES || MCIF_ATOM_SITES.length === 0) return null;
+          const labels = MCIF_ATOM_SITES
+            .map(site => site.wyckoff)
+            .filter(Boolean)
+            .map(val => String(val).trim())
+            .filter(Boolean);
+          if (labels.length === 0) return null;
+          return Array.from(new Set(labels));
+        }
+
+        function getMcifMagneticSitesFromCoords() {
+          if (!currentGroup || !Array.isArray(MCIF_ATOM_COORDS) || MCIF_ATOM_COORDS.length === 0) {
+            return null;
+          }
+          const magneticLabels = Array.isArray(MCIF_MAGNETIC_LABELS) ? MCIF_MAGNETIC_LABELS : [];
+          if (magneticLabels.length === 0) return null;
+          const labelSet = new Set(magneticLabels.map(l => String(l).toLowerCase()));
+          const inferred = [];
+          MCIF_ATOM_COORDS.forEach(site => {
+            if (!site || !site.label || !Array.isArray(site.coord)) return;
+            if (!labelSet.has(String(site.label).toLowerCase())) return;
+            const wyck = inferWyckoffLabelFromCoord(currentGroup, site.coord);
+            if (wyck) inferred.push(wyck);
+          });
+          return inferred.length ? Array.from(new Set(inferred)) : null;
+        }
+
+        function buildMcifAtomSitesWithWyckoff(group) {
+          if (Array.isArray(MCIF_ATOM_SITES) && MCIF_ATOM_SITES.length > 0) {
+            const hasWyckoff = MCIF_ATOM_SITES.some(site => site && site.wyckoff);
+            if (hasWyckoff) return MCIF_ATOM_SITES;
+          }
+          if (!group || !Array.isArray(MCIF_ATOM_COORDS) || MCIF_ATOM_COORDS.length === 0) return MCIF_ATOM_SITES || [];
+          const inferred = MCIF_ATOM_COORDS.map(site => {
+            const wyckoff = inferWyckoffLabelFromCoord(group, site.coord);
+            return wyckoff ? { label: site.label, wyckoff } : null;
+          }).filter(Boolean);
+          return inferred.length > 0 ? inferred : (MCIF_ATOM_SITES || []);
         }
 
         function parseMcifCellParams(text) {
@@ -357,12 +665,120 @@ window.OrbitControls = OrbitControls;
           }
         }
 
+        function setMagneticSitesError(message) {
+          if (!magneticSitesError) return;
+          magneticSitesError.textContent = message || "";
+          magneticSitesError.style.display = message ? "block" : "none";
+        }
+
+        function buildMagneticSitesList(group) {
+          if (!magneticSitesList) return;
+          magneticSitesList.innerHTML = "";
+          if (!group || !Array.isArray(group.wyckoff)) return;
+          const selected = new Set((MAGNETIC_OCCUPIED_SITES || []).map(v => String(v).toLowerCase()));
+          group.wyckoff.forEach((wyck, idx) => {
+            const label = wyck.label || `#${idx}`;
+            const row = document.createElement("label");
+            row.className = "checkbox-row";
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.value = label;
+            checkbox.dataset.index = String(idx);
+            if (selected.has(label.toLowerCase()) || selected.has(String(idx))) {
+              checkbox.checked = true;
+            }
+            const text = document.createElement("span");
+            text.textContent = `${label} (index ${idx})`;
+            row.appendChild(checkbox);
+            row.appendChild(text);
+            magneticSitesList.appendChild(row);
+          });
+        }
+
+        function openMagneticSitesModal(group) {
+          if (!magneticSitesModal) return;
+          buildMagneticSitesList(group);
+          if (magneticSitesMsg) {
+            magneticSitesMsg.textContent =
+              "No-SOC + System selected. Choose occupied magnetic sites from the list.";
+          }
+          setMagneticSitesError("");
+          magneticSitesModal.style.display = "block";
+        }
+
+        function resolveMagneticSitesSelection(value) {
+          if (MAGNETIC_OCCUPIED_RESOLVE) {
+            MAGNETIC_OCCUPIED_RESOLVE(value);
+          }
+          MAGNETIC_OCCUPIED_RESOLVE = null;
+          MAGNETIC_OCCUPIED_PENDING = null;
+        }
+
+        function closeMagneticSitesModal() {
+          if (!magneticSitesModal) return;
+          magneticSitesModal.style.display = "none";
+          setMagneticSitesError("");
+          resolveMagneticSitesSelection(null);
+        }
+
+        function requestMagneticOccupiedSites(options = {}) {
+          const force = !!options.force;
+          if (!force) {
+            const fromMcif = getMcifOccupiedMagneticSites();
+            if (fromMcif && fromMcif.length) {
+              MAGNETIC_OCCUPIED_SITES = fromMcif;
+              return Promise.resolve(MAGNETIC_OCCUPIED_SITES);
+            }
+            const inferred = getMcifMagneticSitesFromCoords();
+            if (inferred && inferred.length) {
+              MAGNETIC_OCCUPIED_SITES = inferred;
+              return Promise.resolve(MAGNETIC_OCCUPIED_SITES);
+            }
+          }
+          if (force) {
+            MAGNETIC_OCCUPIED_SITES = null;
+          }
+          if (!force && MAGNETIC_OCCUPIED_SITES && MAGNETIC_OCCUPIED_SITES.length) {
+            return Promise.resolve(MAGNETIC_OCCUPIED_SITES);
+          }
+          if (MAGNETIC_OCCUPIED_PENDING) return MAGNETIC_OCCUPIED_PENDING;
+          if (!currentGroup || !currentGroup.wyckoff) return Promise.resolve(null);
+          MAGNETIC_OCCUPIED_PENDING = new Promise(resolve => {
+            MAGNETIC_OCCUPIED_RESOLVE = resolve;
+            openMagneticSitesModal(currentGroup);
+          });
+          return MAGNETIC_OCCUPIED_PENDING;
+        }
+
         helpBtn.onclick = function(e) {
             e.preventDefault();
             helpModal.style.display = "block";
         }
         helpClose.onclick = function() {
             helpModal.style.display = "none";
+        }
+
+        if (magneticSitesClose) {
+          magneticSitesClose.onclick = () => closeMagneticSitesModal();
+        }
+        if (magneticSitesCancelBtn) {
+          magneticSitesCancelBtn.onclick = () => closeMagneticSitesModal();
+        }
+        if (magneticSitesApplyBtn) {
+          magneticSitesApplyBtn.onclick = () => {
+            if (!magneticSitesList) return;
+            const checked = Array.from(magneticSitesList.querySelectorAll('input[type="checkbox"]'))
+              .filter(input => input.checked);
+            if (!checked.length) {
+              setMagneticSitesError("Select at least one occupied magnetic site.");
+              return;
+            }
+            MAGNETIC_OCCUPIED_SITES = checked.map(input => input.value || input.dataset.index).filter(Boolean);
+            if (!magneticSitesModal) return;
+            magneticSitesModal.style.display = "none";
+            setMagneticSitesError("");
+            resolveMagneticSitesSelection(MAGNETIC_OCCUPIED_SITES);
+          };
         }
 
         if (importMcifBtn && mcifFileInput) {
@@ -385,9 +801,17 @@ window.OrbitControls = OrbitControls;
             const mcifGroup = parseMcifMagneticGroup(text);
             const mcifAtom = parseMcifAtomFract(text);
             const mcifAtomSites = parseMcifAtomSites(text);
+            const mcifAtomCoords = parseMcifAtomCoords(text);
+            const mcifMagneticLabels = parseMcifMagneticLabels(text);
             MCIF_ATOM_VARS = mcifAtom ? { ...mcifAtom } : null;
             MCIF_ATOM_SITES = mcifAtomSites ? [...mcifAtomSites] : null;
-            renderMcifAtomHeader(MCIF_ATOM_SITES);
+            MCIF_ATOM_COORDS = mcifAtomCoords ? [...mcifAtomCoords] : null;
+            MCIF_MAGNETIC_LABELS = mcifMagneticLabels ? [...mcifMagneticLabels] : null;
+            renderMcifAtomHeader(buildMcifAtomSitesWithWyckoff(currentGroup));
+            const mcifOccupied = getMcifOccupiedMagneticSites();
+            if (mcifOccupied && mcifOccupied.length) {
+              MAGNETIC_OCCUPIED_SITES = mcifOccupied;
+            }
 
             if (mcifGroup && groupInput) {
               groupInput.value = mcifGroup;
@@ -495,6 +919,9 @@ window.OrbitControls = OrbitControls;
       if (event.target == cellParamsModal) {
         closeCellParamsModal();
             }
+      if (event.target == magneticSitesModal) {
+        closeMagneticSitesModal();
+      }
         }
 // ==================== Tensor Ylm state ====================
 // rank → { harmonics:[[l,m],...], weights:number[] }
@@ -532,6 +959,9 @@ window.OrbitControls = OrbitControls;
     let multipoleMode = 'magnetic'; // 'magnetic' or 'electric'
 // Global registry of canonical variable labels (persistent across atoms in current position)
 const VARIABLE_REGISTRY = {};
+    let MAGNETIC_OCCUPIED_SITES = null;
+  let MAGNETIC_OCCUPIED_PENDING = null;
+  let MAGNETIC_OCCUPIED_RESOLVE = null;
 
         
 // Load Data (moved to backend API)
@@ -544,6 +974,41 @@ const API_BASE = (import.meta.env.VITE_API_BASE || (window.location.origin + "/a
             }
             return await res.json();
         }
+
+// Cache last alignment payload per (group, wyckoff, rank)
+const ALIGNMENT_SEND_CACHE = new Map();
+
+function buildAlignmentSignature(alignment) {
+  return alignment
+    .map(a => `${a.atom_index}:${a.relation_to_ref}:${(a.coord || []).map(v => Number(v).toFixed(4)).join(',')}`)
+    .join('|');
+}
+
+function sendAlignmentToBackend({ groupIndex, wyckoffIndex, rank, alignment, anyIncomparable, groups }) {
+  if (groupIndex === null || groupIndex === undefined) return;
+  if (wyckoffIndex === null || wyckoffIndex === undefined) return;
+  if (!Array.isArray(alignment) || alignment.length === 0) return;
+
+  const key = `${groupIndex}|${wyckoffIndex}|${rank}`;
+  const sig = buildAlignmentSignature(alignment);
+  if (ALIGNMENT_SEND_CACHE.get(key) === sig) return;
+  ALIGNMENT_SEND_CACHE.set(key, sig);
+
+  fetchJSON(`${API_BASE}/alignment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      group_index: groupIndex,
+      wyckoff_index: wyckoffIndex,
+      rank: rank,
+      any_incomparable: !!anyIncomparable,
+      alignment: alignment,
+      groups: Array.isArray(groups) ? groups : []
+    })
+  }).catch(err => {
+    console.warn("Failed to send alignment payload", err);
+  });
+}
 
         async function loadGroupsFromBackend() {
             const groups = await fetchJSON(`${API_BASE}/groups`);
@@ -571,6 +1036,8 @@ const API_BASE = (import.meta.env.VITE_API_BASE || (window.location.origin + "/a
 
             sel.onchange = async () => {
             updateInputFromSelect();
+
+            MAGNETIC_OCCUPIED_SITES = null;
 
             resetWyckoffSelectionAndClearViewer();
             document.getElementById("results").innerHTML = "";
@@ -935,6 +1402,7 @@ async function populateWyckoff(idx) {
             document.getElementById('results').innerHTML = '';
             document.getElementById('status').innerText = '';
             renderWyckoffOccupancyLine();
+            renderMcifAtomHeader(buildMcifAtomSitesWithWyckoff(currentGroup));
             // Automatically compute (will do nothing if placeholder is selected)
             
         }
@@ -983,9 +1451,33 @@ async function populateWyckoff(idx) {
             }
         };
 
-        document.getElementById('wyckoffSelect').onchange = () => {
+        async function ensureMagneticOccupiedSites(options = {}) {
+          const force = !!options.force;
+          if (!force && MAGNETIC_OCCUPIED_SITES && MAGNETIC_OCCUPIED_SITES.length) {
+            return MAGNETIC_OCCUPIED_SITES;
+          }
+          return await requestMagneticOccupiedSites({ force });
+        }
+
+        const handleWyckoffChange = async () => {
+        renderWyckoffOccupancyLine();
+        resetAllForWyckoffChange();
         wyckoffRandomVars = null;   // new random for new wyckoff
-        triggerCompute();           // your normal compute
+        const wSel = document.getElementById("wyckoffSelect")?.value;
+        const includeSoc = document.getElementById('includeSocSwitch') ? document.getElementById('includeSocSwitch').checked : true;
+        if (!includeSoc && wSel === "whole" && multipoleMode === 'magnetic') {
+          const mcifSites = getMcifOccupiedMagneticSites();
+          const inferredSites = getMcifMagneticSitesFromCoords();
+          const hasSites = (MAGNETIC_OCCUPIED_SITES && MAGNETIC_OCCUPIED_SITES.length) ||
+            (mcifSites && mcifSites.length) ||
+            (inferredSites && inferredSites.length);
+          const picked = await ensureMagneticOccupiedSites({ force: !hasSites });
+          if (!picked) {
+            document.getElementById("status").innerText = "Please specify occupied magnetic sites for No-SOC system.";
+            return;
+          }
+        }
+        await triggerCompute();           // your normal compute
         updateOrbitViewer();        // draw spheres
         };
         document.getElementById('voigtCheck').onchange = () => {
@@ -1018,6 +1510,18 @@ async function populateWyckoff(idx) {
           return;
         }
         if (wSel) {
+          if (!includeSocSwitch.checked && wSel === "whole") {
+            const mcifSites = getMcifOccupiedMagneticSites();
+            const inferredSites = getMcifMagneticSitesFromCoords();
+            const hasSites = (MAGNETIC_OCCUPIED_SITES && MAGNETIC_OCCUPIED_SITES.length) ||
+              (mcifSites && mcifSites.length) ||
+              (inferredSites && inferredSites.length);
+            const picked = await ensureMagneticOccupiedSites({ force: !hasSites });
+            if (!picked) {
+              document.getElementById("status").innerText = "Please specify occupied magnetic sites for No-SOC system.";
+              return;
+            }
+          }
           document.getElementById("status").innerText = includeSocSwitch.checked
             ? "SOC enabled — recomputing…"
             : "SOC disabled — computing No-SOC basis…";
@@ -1074,6 +1578,16 @@ async function populateWyckoff(idx) {
 
             const voigt = document.getElementById('voigtCheck').checked;
             const crystal_basis = document.getElementById('crystalBasisSwitch').checked;
+            const includeSocFlag = document.getElementById('includeSocSwitch') ? document.getElementById('includeSocSwitch').checked : true;
+            let magneticSitesPayload = (wSel === 'whole' && Array.isArray(MAGNETIC_OCCUPIED_SITES)) ? MAGNETIC_OCCUPIED_SITES : null;
+            if (!includeSocFlag && wSel === 'whole' && multipoleMode === 'magnetic' && (!magneticSitesPayload || magneticSitesPayload.length === 0)) {
+              const picked = await ensureMagneticOccupiedSites({ force: true });
+              if (!picked) {
+                status.innerText = "Please specify occupied magnetic sites for No-SOC system.";
+                return;
+              }
+              magneticSitesPayload = Array.isArray(picked) ? picked : null;
+            }
 
             // Backend computes invariant basis; frontend keeps identical rendering.
             const payload = {
@@ -1083,7 +1597,8 @@ async function populateWyckoff(idx) {
                 mode: multipoleMode,
                 voigt: voigt,
         crystal_basis: crystal_basis,
-        include_soc: document.getElementById('includeSocSwitch') ? document.getElementById('includeSocSwitch').checked : true
+    include_soc: includeSocFlag,
+    magnetic_sites: magneticSitesPayload
             };
 
             const data = await fetchJSON(`${API_BASE}/compute`, {
@@ -1093,7 +1608,8 @@ async function populateWyckoff(idx) {
             });
 
       const includeSoc = document.getElementById('includeSocSwitch') ? document.getElementById('includeSocSwitch').checked : true;
-      const noSocForceForbidden = !includeSoc && multipoleMode === 'magnetic' &&
+      const systemHasMagSites = wSel === 'whole' && Array.isArray(MAGNETIC_OCCUPIED_SITES) && MAGNETIC_OCCUPIED_SITES.length > 0;
+      const noSocForceForbidden = !includeSoc && multipoleMode === 'magnetic' && !systemHasMagSites &&
         (data.ranks || []).some(r => r.rank === 1 && (!r.basis || r.basis.length === 0));
       if (noSocForceForbidden) {
         clearIsoGroup();
@@ -1830,6 +2346,46 @@ async function populateWyckoff(idx) {
                 if (basis.length > 0) {
                     const groups = analyzeAtomOrdering(basis, rank, orbit, group);
                     updateOrbitSphereTooltips(orbit, groups);
+
+                    const alignmentPayload = [];
+                    const groupsPayload = [];
+                    groups.forEach(g => {
+                      const memberIndices = [];
+                      const memberRelations = [];
+                      g.members.forEach(m => {
+                        const atom = orbit[m.atomIdx];
+                        if (!atom) return;
+                        memberIndices.push(m.atomIdx);
+                        memberRelations.push(m.relationToRef || m.relation);
+                        alignmentPayload.push({
+                          atom_index: m.atomIdx,
+                          relation_to_ref: m.relationToRef || m.relation,
+                          group_id: g.id,
+                          coord: atom.coord,
+                          coord_sym: atom.coordSym || null,
+                          op_str: atom.op && atom.op.str ? atom.op.str : null
+                        });
+                      });
+                      groupsPayload.push({
+                        group_id: g.id,
+                        members: memberIndices,
+                        relations: memberRelations
+                      });
+                    });
+
+                    const anyIncomparablePayload = alignmentPayload.some(a => a.relation_to_ref === "Incomparable");
+                    const groupIndex = parseInt(document.getElementById('groupSelect').value, 10);
+                    const wyckoffIndex = document.getElementById('wyckoffSelect')?.value;
+                    if (!isNaN(groupIndex) && wyckoffIndex && wyckoffIndex !== "whole") {
+                      sendAlignmentToBackend({
+                        groupIndex,
+                        wyckoffIndex,
+                        rank,
+                        alignment: alignmentPayload,
+                        anyIncomparable: anyIncomparablePayload,
+                        groups: groupsPayload
+                      });
+                    }
 
                         // If rank==1, compute sublattice translation between representative and an Opposite member
                         if (rank === 1) {
@@ -2670,16 +3226,13 @@ async function populateWyckoff(idx) {
                         summaryDiv.style.fontWeight = '700';
                         summaryDiv.style.marginTop = '8px';
                         if (overallStatus === 'ferro') {
-                            summaryDiv.innerText = 'Ferroically Order';
+                            summaryDiv.innerText = 'Ferro order';
                             summaryDiv.style.color = '#1b5e20';
                         } else if (overallStatus === 'antiferro') {
-                            summaryDiv.innerText = 'Anti-Ferroically Order';
+                            summaryDiv.innerText = 'Anti-Ferro order';
                             summaryDiv.style.color = '#b71c1c';
-                        } else if (overallStatus === 'mixed') {
-                            summaryDiv.innerText = 'Mixed / Non-collinear ordering';
-                            summaryDiv.style.color = '#666';
                         } else if (overallStatus === 'ncl') {
-                            summaryDiv.innerText = 'NCL order';
+                            summaryDiv.innerText = 'Mixed (ferri) order';
                             summaryDiv.style.color = '#666';
                         } else {
                             summaryDiv.innerText = 'No grouped pairings';
@@ -5047,14 +5600,7 @@ function renderTensorIsosurfacesFromSiteTensor(orbitMaybe) {
             document.getElementById('status').innerText = 'Error loading groups: ' + e.message;
         });
 document.getElementById('wyckoffSelect').onchange = async () => {
-  renderWyckoffOccupancyLine();
-
-  // Full reset on Wyckoff change
-  resetAllForWyckoffChange();
-
-  wyckoffRandomVars = null;
-  await triggerCompute();
-  updateOrbitViewer();
+  await handleWyckoffChange();
 };
 
 
