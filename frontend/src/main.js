@@ -172,11 +172,13 @@ window.OrbitControls = OrbitControls;
                 headers.push(hdr);
                 i += 1;
               }
-              const lowerHeaders = headers.map(h => h.toLowerCase());
+              const lowerHeaders = headers.map(h => h.toLowerCase().trim());
               const labelIdx = lowerHeaders.findIndex(h =>
                 h === "_atom_site_label" ||
                 h === "_atom_site_type_symbol" ||
-                h === "_atom_site_symbol"
+                h === "_atom_site_symbol" ||
+                h.includes("_atom_site_label") ||
+                h.includes("_atom_site_type_symbol")
               );
               const xIdx = lowerHeaders.findIndex(h => h === "_atom_site_fract_x");
               const yIdx = lowerHeaders.findIndex(h => h === "_atom_site_fract_y");
@@ -277,16 +279,23 @@ window.OrbitControls = OrbitControls;
                 i += 1;
               }
 
-              const lowerHeaders = headers.map(h => h.toLowerCase());
+              const lowerHeaders = headers.map(h => h.toLowerCase().trim());
               const labelIdx = lowerHeaders.findIndex(h =>
                 h === "_atom_site_label" ||
                 h === "_atom_site_type_symbol" ||
-                h === "_atom_site_symbol"
+                h === "_atom_site_symbol" ||
+                h.includes("_atom_site_label") ||
+                h.includes("_atom_site_type_symbol")
               );
               const wyckoffIdx = lowerHeaders.findIndex(h =>
                 h === "_atom_site_wyckoff_symbol" ||
                 h === "_atom_site_wyckoff_letter" ||
-                h === "_atom_site_wyckoff"
+                h === "_atom_site_wyckoff" ||
+                h.includes("_atom_site_wyckoff")
+              );
+              const multIdx = lowerHeaders.findIndex(h =>
+                h === "_atom_site_symmetry_multiplicity" ||
+                h.includes("_atom_site_symmetry_multiplicity")
               );
 
               if (labelIdx >= 0 && wyckoffIdx >= 0) {
@@ -303,7 +312,10 @@ window.OrbitControls = OrbitControls;
                   const parts = tokenizeMcifRow(dataLine);
                   if (parts.length >= headers.length) {
                     const label = parseMcifString(parts[labelIdx]);
-                    const wyckoff = parseMcifString(parts[wyckoffIdx]);
+                    const wyckoffSym = parseMcifString(parts[wyckoffIdx]);
+                    const multRaw = multIdx >= 0 ? parseMcifString(parts[multIdx]) : null;
+                    const mult = multRaw ? String(multRaw).replace(/\D/g, "") : "";
+                    const wyckoff = wyckoffSym ? `${mult}${wyckoffSym}` : null;
                     if (label && wyckoff) {
                       sites.push({ label, wyckoff });
                     }
@@ -729,19 +741,30 @@ window.OrbitControls = OrbitControls;
           resolveMagneticSitesSelection(null);
         }
 
+        function getMagneticSitesCandidates() {
+          const fromMcif = getMcifOccupiedMagneticSites();
+          const inferred = getMcifMagneticSitesFromCoords();
+          const existing = (Array.isArray(MAGNETIC_OCCUPIED_SITES) && MAGNETIC_OCCUPIED_SITES.length)
+            ? MAGNETIC_OCCUPIED_SITES
+            : (fromMcif && fromMcif.length)
+              ? fromMcif
+              : (inferred && inferred.length)
+                ? inferred
+                : null;
+          if (!MAGNETIC_OCCUPIED_SITES && existing && existing.length) {
+            MAGNETIC_OCCUPIED_SITES = existing;
+          }
+          return {
+            sites: existing,
+            hasSites: !!(existing && existing.length)
+          };
+        }
+
         function requestMagneticOccupiedSites(options = {}) {
           const force = !!options.force;
           if (!force) {
-            const fromMcif = getMcifOccupiedMagneticSites();
-            if (fromMcif && fromMcif.length) {
-              MAGNETIC_OCCUPIED_SITES = fromMcif;
-              return Promise.resolve(MAGNETIC_OCCUPIED_SITES);
-            }
-            const inferred = getMcifMagneticSitesFromCoords();
-            if (inferred && inferred.length) {
-              MAGNETIC_OCCUPIED_SITES = inferred;
-              return Promise.resolve(MAGNETIC_OCCUPIED_SITES);
-            }
+            const { sites, hasSites } = getMagneticSitesCandidates();
+            if (hasSites) return Promise.resolve(sites);
           }
           if (force) {
             MAGNETIC_OCCUPIED_SITES = null;
@@ -969,7 +992,8 @@ window.OrbitControls = OrbitControls;
     let TENSORS_ALREADY_PER_SITE = true;
     let multipoleMode = 'magnetic'; // 'magnetic' or 'electric'
 // Global registry of canonical variable labels (persistent across atoms in current position)
-const VARIABLE_REGISTRY = {};
+const VARIABLE_REGISTRY_BY_KEY = {};
+const GLOBAL_EXPR_LABELS_BY_KEY = {};
     let MAGNETIC_OCCUPIED_SITES = null;
   let MAGNETIC_OCCUPIED_PENDING = null;
   let MAGNETIC_OCCUPIED_RESOLVE = null;
@@ -1477,11 +1501,7 @@ async function populateWyckoff(idx) {
         const wSel = document.getElementById("wyckoffSelect")?.value;
         const includeSoc = document.getElementById('includeSocSwitch') ? document.getElementById('includeSocSwitch').checked : true;
         if (!includeSoc && wSel === "whole" && multipoleMode === 'magnetic') {
-          const mcifSites = getMcifOccupiedMagneticSites();
-          const inferredSites = getMcifMagneticSitesFromCoords();
-          const hasSites = (MAGNETIC_OCCUPIED_SITES && MAGNETIC_OCCUPIED_SITES.length) ||
-            (mcifSites && mcifSites.length) ||
-            (inferredSites && inferredSites.length);
+          const { hasSites } = getMagneticSitesCandidates();
           const picked = await ensureMagneticOccupiedSites({ force: !hasSites });
           if (!picked) {
             document.getElementById("status").innerText = "Please specify occupied magnetic sites for No-SOC system.";
@@ -1522,11 +1542,7 @@ async function populateWyckoff(idx) {
         }
         if (wSel) {
           if (!includeSocSwitch.checked && wSel === "whole") {
-            const mcifSites = getMcifOccupiedMagneticSites();
-            const inferredSites = getMcifMagneticSitesFromCoords();
-            const hasSites = (MAGNETIC_OCCUPIED_SITES && MAGNETIC_OCCUPIED_SITES.length) ||
-              (mcifSites && mcifSites.length) ||
-              (inferredSites && inferredSites.length);
+            const { hasSites } = getMagneticSitesCandidates();
             const picked = await ensureMagneticOccupiedSites({ force: !hasSites });
             if (!picked) {
               document.getElementById("status").innerText = "Please specify occupied magnetic sites for No-SOC system.";
@@ -1590,7 +1606,8 @@ async function populateWyckoff(idx) {
             const voigt = document.getElementById('voigtCheck').checked;
             const crystal_basis = document.getElementById('crystalBasisSwitch').checked;
             const includeSocFlag = document.getElementById('includeSocSwitch') ? document.getElementById('includeSocSwitch').checked : true;
-            let magneticSitesPayload = (wSel === 'whole' && Array.isArray(MAGNETIC_OCCUPIED_SITES)) ? MAGNETIC_OCCUPIED_SITES : null;
+            const { sites: candidateSites } = getMagneticSitesCandidates();
+            let magneticSitesPayload = (wSel === 'whole' && Array.isArray(candidateSites)) ? candidateSites : null;
             if (!includeSocFlag && wSel === 'whole' && multipoleMode === 'magnetic' && (!magneticSitesPayload || magneticSitesPayload.length === 0)) {
               const picked = await ensureMagneticOccupiedSites({ force: true });
               if (!picked) {
@@ -1644,9 +1661,12 @@ async function populateWyckoff(idx) {
             resultsDiv.appendChild(opsDiv);
 
             // Fill ranks (basis vectors) and render using original displayResult()
-            for (let rank = 1; rank <= maxRank; rank++) {
-                const r = (data.ranks || []).find(x => x.rank === rank);
-        const basis = (noSocForceForbidden || !r) ? [] : r.basis;
+      for (let rank = 1; rank <= maxRank; rank++) {
+        const r = (data.ranks || []).find(x => x.rank === rank);
+    // Only force-forbid rank-1 (dipole) when the no-SOC global condition applies.
+    // Previously noSocForceForbidden blanked all ranks which hid valid higher-rank
+    // results coming from the backend (e.g. rank 3 and 5). Keep other ranks as returned.
+    const basis = (!r) ? [] : (noSocForceForbidden && r.rank === 1) ? [] : r.basis;
                 lastResults.push({rank: rank, basis: basis, group: group, wyckoff: wyckoff});
                 // --- Ylm slider pruning: union over basis vectors (tensor_visualizer logic)
                 displayResult(rank, basis, resultsDiv, group, wyckoff);
@@ -2200,6 +2220,11 @@ async function populateWyckoff(idx) {
         function displayResult(rank, basis, container, group, wyckoff) {
             const div = document.createElement('div');
             div.className = 'rank-block';
+
+      // Use per-rank/per-mode label registries to avoid cross-rank renaming collisions
+      const labelRegistryKey = `${multipoleMode}|${rank}`;
+      const VARIABLE_REGISTRY = VARIABLE_REGISTRY_BY_KEY[labelRegistryKey] || (VARIABLE_REGISTRY_BY_KEY[labelRegistryKey] = {});
+      const GLOBAL_EXPR_LABELS = GLOBAL_EXPR_LABELS_BY_KEY[labelRegistryKey] || (GLOBAL_EXPR_LABELS_BY_KEY[labelRegistryKey] = {});
             
             const rankNames = {
                 1: "Dipole (Rank 1)",
@@ -2536,6 +2561,7 @@ async function populateWyckoff(idx) {
                     // Container for selected tensor
           // Container for selected tensor will be created on demand when an atom is clicked
             let selectedDiv = null;
+            let LABEL_SEED_IN_PROGRESS = false;
             // Variable registry for this ordering run: maps canonical variable label (e.g. 'x')
             // to an object { label: "x'", origCoefNum: 1.0, origCoefStr: "1" , defined: true }
             // This lets later atoms reuse the same short label and express coefficients
@@ -2555,9 +2581,16 @@ async function populateWyckoff(idx) {
             }
           };
                     
-                    const showTensorForAtom = (atom) => {
+                    const showTensorForAtom = (atom, atomIndex, seedOnly = false) => {
             try {
             const dim = Math.pow(3, rank);
+                        if (!seedOnly && Object.keys(GLOBAL_EXPR_LABELS).length === 0 && !LABEL_SEED_IN_PROGRESS) {
+                          if (typeof atomIndex === 'number' && atomIndex !== 0 && orbit && orbit.length > 0) {
+                            LABEL_SEED_IN_PROGRESS = true;
+                            showTensorForAtom(orbit[0], 0, true);
+                            LABEL_SEED_IN_PROGRESS = false;
+                          }
+                        }
                         const op = atom.op;
                         // Prepare lattice matrices
                         const latM = getIdealLatticeMatrix(group);
@@ -2935,6 +2968,20 @@ async function populateWyckoff(idx) {
             };
 
             for (const [key, list] of Object.entries(exprGroups)) {
+              const existingGlobalLabel =
+                (VARIABLE_REGISTRY[key] && VARIABLE_REGISTRY[key].label) ||
+                (GLOBAL_EXPR_LABELS[key] && GLOBAL_EXPR_LABELS[key].label);
+              if (existingGlobalLabel) {
+                labelMap[key] = existingGlobalLabel;
+                if (!GLOBAL_EXPR_LABELS[key]) {
+                  GLOBAL_EXPR_LABELS[key] = {
+                    label: existingGlobalLabel,
+                    expr: VARIABLE_REGISTRY[key] ? key : null,
+                    defined: true
+                  };
+                }
+                continue;
+              }
               // If the key corresponds to a canonical variable (single-var groups),
               // prefer to use the component index of that canonical variable as the
               // base for the generated short label. Otherwise fall back to the
@@ -3031,6 +3078,14 @@ async function populateWyckoff(idx) {
                   // coefficient) so that different numeric multiples reuse the same
                   // short label.
                   labelMap[key] = label;
+
+                  if (!GLOBAL_EXPR_LABELS[key]) {
+                    GLOBAL_EXPR_LABELS[key] = {
+                      label,
+                      expr: usedLabels[label] || null,
+                      defined: !!usedLabels[label]
+                    };
+                  }
             }
 
             // Replace components: for single-var keys remove numeric magnitude from
@@ -3095,6 +3150,10 @@ async function populateWyckoff(idx) {
 
             // Format
                         const coordStr = atom.coordSym || atom.coord.map(x => decimalToFraction(x)).join(',');
+                        if (seedOnly) {
+                          return;
+                        }
+
                         let html = `<h4>Tensor Shape for Atom at ${coordStr}</h4>`;
                         html += `<div style="font-size: 0.9em; margin-bottom: 5px;">
                                     <strong>Variables:</strong> <span style="font-family: monospace;">
@@ -3170,7 +3229,7 @@ async function populateWyckoff(idx) {
                         card.style.cssText = `padding: 8px; border-radius: 4px; cursor: pointer; transition: transform 0.1s; ${item.style}`;
                         card.onmouseover = () => card.style.transform = "scale(1.02)";
                         card.onmouseout = () => card.style.transform = "scale(1)";
-                        card.onclick = () => showTensorForAtom(p);
+                        card.onclick = () => showTensorForAtom(p, i, false);
 
                         card.innerHTML = `
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
@@ -4196,7 +4255,8 @@ function resetTensorStateForNewPosition() {
   // IMPORTANT for Bug 8 logic: also clear persisted variables
   for (const k in GLOBAL_BASIS_COEFFS) delete GLOBAL_BASIS_COEFFS[k];
   // Clear the global variable registry too so new Wyckoff selections start fresh
-  for (const k in VARIABLE_REGISTRY) delete VARIABLE_REGISTRY[k];
+  for (const k in VARIABLE_REGISTRY_BY_KEY) delete VARIABLE_REGISTRY_BY_KEY[k];
+  for (const k in GLOBAL_EXPR_LABELS_BY_KEY) delete GLOBAL_EXPR_LABELS_BY_KEY[k];
 }
 
 function resetAllForWyckoffChange() {

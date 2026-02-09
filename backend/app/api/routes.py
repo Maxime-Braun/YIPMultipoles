@@ -51,6 +51,10 @@ async def compute(req: ComputeRequest) -> dict:
         mode=req.mode,
         include_soc=req.include_soc,
         magnetic_sites=req.magnetic_sites,
+        lattice_matrix=req.lattice_matrix,
+        frontend_atom_tensors_by_rank=req.frontend_atom_tensors_by_rank,
+        group_index=req.group_index,
+        wyckoff_index=req.wyckoff_index,
         db_all=db,
     )
 

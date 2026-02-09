@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 class ComputeRequest(BaseModel):
     group_index: int = Field(..., ge=0)
@@ -8,6 +8,8 @@ class ComputeRequest(BaseModel):
     mode: str = Field("magnetic", pattern="^(magnetic|electric)$")
     include_soc: bool = True
     magnetic_sites: Optional[List[str]] = None
+    lattice_matrix: Optional[List[List[float]]] = None
+    frontend_atom_tensors_by_rank: Optional[Dict[int, List[List[List[float]]]]] = None
 
 
 class AlignmentAtom(BaseModel):

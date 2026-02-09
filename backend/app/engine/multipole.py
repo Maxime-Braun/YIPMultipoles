@@ -24,10 +24,12 @@ If your JSON differs slightly, adapt the field names here.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, cast
 import math
 import re
 import numpy as np
+
+from ..core.alignment_store import get_alignment
 
 
 # --------------------------
@@ -99,7 +101,6 @@ def compute_multipoles(
     
     # 1. Intrinsic symmetry (for rank>=3, enforce symmetry of last rank-1 indices)
     # This matches the legacy behaviour.
-    # Note: The logic below creates constraint rows for permutations.
     if rank >= 3:
         # We need to enforce T_{...i j ...} = T_{...j i ...} 
         # specifically for the last (rank-1) indices as per original logic.
@@ -245,28 +246,232 @@ def _apply_op_to_tensor(vec: Sequence[float], rank: int, R: Sequence[Sequence[fl
 def _coord_close(a: Sequence[float], b: Sequence[float], tol: float = 1e-4) -> bool:
     return all(abs(x - y) < tol or abs(x - y - 1) < tol or abs(x - y + 1) < tol for x, y in zip(a, b))
 
-
-def _get_orbit_ops(group: Dict[str, Any], wyckoff: Dict[str, Any], tol: float = 1e-4) -> List[Dict[str, Any]]:
+def _build_orbit_mapping(
+    group: Dict[str, Any],
+    wyckoff: Dict[str, Any],
+    tol: float = 1e-4,
+) -> Tuple[List[List[float]], Dict[int, int]]:
     ops = group.get("operators", [])
     coord_str = wyckoff.get("coord", "")
     base = _parse_coord_triplet(coord_str, 0.123, 0.234, 0.345)
     base = [_frac01(v) for v in base]
-    seen: List[List[float]] = []
-    orbit_ops: List[Dict[str, Any]] = []
-    for op in ops:
+    coords: List[List[float]] = []
+    op_to_index: Dict[int, int] = {}
+    for op_idx, op in enumerate(ops):
         coord = vec_add(matvec(op["R"], base), op.get("t", [0, 0, 0]))
         coord = [_frac01(v) for v in coord]
-        if any(_coord_close(coord, s, tol) for s in seen):
+        found = None
+        for i, existing in enumerate(coords):
+            if _coord_close(coord, existing, tol):
+                found = i
+                break
+        if found is None:
+            coords.append(coord)
+            found = len(coords) - 1
+        op_to_index[op_idx] = found
+    return coords, op_to_index
+
+
+def _alignment_signs(
+    group_index: Optional[int],
+    wyckoff_index: Optional[Union[int, str]],
+    rank: int,
+) -> Dict[int, int]:
+    if group_index is None or wyckoff_index is None:
+        return {}
+    data = get_alignment(group_index, str(wyckoff_index), rank)
+    if not data:
+        return {}
+    signs: Dict[int, int] = {}
+    for entry in data.get("alignment", []) or []:
+        idx = entry.get("atom_index")
+        rel = entry.get("relation_to_ref")
+        if idx is None:
             continue
-        seen.append(coord)
-        orbit_ops.append(op)
-    return orbit_ops
+        if rel == "Same":
+            signs[int(idx)] = 1
+        elif rel == "Opposite":
+            signs[int(idx)] = -1
+        else:
+            signs[int(idx)] = 0
+    return signs
+
+
+def _infer_alignment_signs_from_ops(
+    dipole_basis: Sequence[Sequence[float]],
+    orbit_ops: Sequence[Dict[str, Any]],
+    tol: float = 1e-4,
+) -> Dict[int, int]:
+    """Infer Same/Opposite alignment signs from dipole basis and orbit ops."""
+    if not dipole_basis or not orbit_ops:
+        return {}
+
+    ref_vecs = []
+    for b in dipole_basis:
+        ref_vecs.append(np.array(b, dtype=float))
+
+    signs: Dict[int, int] = {}
+    for idx, op in enumerate(orbit_ops):
+        R = np.array(op["R"], dtype=float)
+        tr = int(op.get("tr", 1)) if op.get("tr", 1) is not None else 1
+        detR = float(np.linalg.det(R))
+        factor = tr * detR
+        same = True
+        opp = True
+        for bvec in ref_vecs:
+            transformed = factor * (R @ bvec)
+            if np.any(np.abs(transformed - bvec) > tol):
+                same = False
+            if np.any(np.abs(transformed + bvec) > tol):
+                opp = False
+            if not same and not opp:
+                break
+        if same:
+            signs[idx] = 1
+        elif opp:
+            signs[idx] = -1
+        else:
+            signs[idx] = 0
+    return signs
 
 
 
 # --------------------------
 # No-SOC magnetic algorithm
 # --------------------------
+
+def _compute_no_soc_electric_basis(
+    db_all: Optional[Sequence[Dict[str, Any]]],
+    group: Dict[str, Any],
+    wyckoff: Optional[Dict[str, Any]],
+    rank: int,
+) -> List[List[float]]:
+    if rank <= 1:
+        return [[1.0]]
+
+    og_int = _parse_og_integer(group.get("name", ""))
+    nuclear_group = _find_nuclear_group(db_all, og_int)
+    if not nuclear_group or not wyckoff:
+        return []
+
+    nuclear_wyck = _find_matching_wyckoff(nuclear_group, wyckoff)
+    if not nuclear_wyck:
+        return []
+
+    site_ops = get_site_ops(nuclear_group, nuclear_wyck)
+    ops = [Op(R=op["R"], tr=1) for op in site_ops]
+    return compute_multipoles(rank=rank - 1, ops=ops, multipole_mode="electric")
+
+
+def _compute_no_soc_basis(
+    db_all: Optional[Sequence[Dict[str, Any]]],
+    group: Dict[str, Any],
+    wyckoff: Optional[Dict[str, Any]],
+    rank: int,
+    ops_soc: Sequence[Op],
+    group_index: Optional[int] = None,
+    wyckoff_index: Optional[Union[int, str]] = None,
+    lattice_matrix: Optional[Sequence[Sequence[float]]] = None,
+) -> List[List[float]]:
+    if wyckoff is None:
+        return compute_multipoles(rank=rank, ops=ops_soc, multipole_mode="magnetic")
+
+    dipole_basis = compute_multipoles(rank=1, ops=ops_soc, multipole_mode="magnetic")
+    if not dipole_basis:
+        return []
+
+    electric_basis = _compute_no_soc_electric_basis(db_all, group, wyckoff, rank)
+    if not electric_basis:
+        return []
+
+    basis_list: List[List[float]] = []
+    for s in dipole_basis:
+        spin_vec = np.array(s, dtype=float)
+        for e in electric_basis:
+            tensor = _tensor_product_spin(e, spin_vec.tolist())
+            basis_list.append(tensor.tolist())
+
+    return _combine_basis_vectors(basis_list)
+
+
+def compute_no_soc_tensor_with_permutations(
+    db_all: Optional[Sequence[Dict[str, Any]]],
+    group: Dict[str, Any],
+    wyckoff: Dict[str, Any],
+    rank: int,
+    spin_vector: Optional[Sequence[float]] = None,
+    group_index: Optional[int] = None,
+    wyckoff_index: Optional[Union[int, str]] = None,
+    lattice_matrix: Optional[Sequence[Sequence[float]]] = None,
+) -> List[List[float]]:
+    """Construct no-SOC magnetic tensors by coupling electric (rank n-1) and dipoles."""
+    if rank < 1:
+        return []
+
+    electric_basis = _compute_no_soc_electric_basis(db_all, group, wyckoff, rank)
+    if not electric_basis:
+        return []
+
+    if spin_vector is not None:
+        dipole_basis = [list(spin_vector)]
+    else:
+        site_ops_raw = get_site_ops(group, wyckoff)
+        ops_soc = [Op(R=op["R"], tr=int(op.get("tr", 1)) or 1) for op in site_ops_raw]
+        dipole_basis = compute_multipoles(rank=1, ops=ops_soc, multipole_mode="magnetic")
+    if not dipole_basis:
+        return []
+
+    coords, op_to_index = _build_orbit_mapping(group, wyckoff)
+    n_sites = len(coords)
+    if n_sites == 0:
+        return []
+
+    op_for_site: List[Dict[str, Any]] = [None] * n_sites  # type: ignore[list-item]
+    for op_idx, op in enumerate(group.get("operators", [])):
+        site_idx = op_to_index.get(op_idx)
+        if site_idx is None:
+            continue
+        if op_for_site[site_idx] is None:
+            op_for_site[site_idx] = op
+    for i, op in enumerate(op_for_site):
+        if op is None:
+            op_for_site[i] = {"R": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], "t": [0.0, 0.0, 0.0], "tr": 1}
+
+    alignment_signs = _alignment_signs(group_index, wyckoff_index, 1)
+    if not alignment_signs:
+        alignment_signs = _infer_alignment_signs_from_ops(dipole_basis, op_for_site)
+
+    if alignment_signs:
+        signs = [alignment_signs.get(i, 0) for i in range(n_sites)]
+    else:
+        signs = [1] * n_sites
+
+    dim_site = 3 ** rank
+    sub_rank = rank - 1
+
+    basis_list: List[List[float]] = []
+    for s in dipole_basis:
+        spin_vec = np.array(s, dtype=float)
+        for e in electric_basis:
+            site_tensors = []
+            for site_idx in range(n_sites):
+                sign = signs[site_idx]
+                if sign == 0:
+                    site_tensors.append(np.zeros(dim_site, dtype=float))
+                    continue
+                op = op_for_site[site_idx]
+                R = op["R"]
+                if sub_rank <= 0:
+                    e_trans = np.array(e, dtype=float)
+                else:
+                    e_trans = _apply_op_to_tensor(e, sub_rank, R)
+                spin_site = spin_vec * sign
+                tensor = _tensor_product_spin(e_trans.tolist(), spin_site.tolist())
+                site_tensors.append(tensor)
+            stacked = np.concatenate(site_tensors)
+            basis_list.append(stacked.tolist())
+
+    return _combine_basis_vectors(basis_list)
 
 def _parse_og_integer(name: str) -> Optional[int]:
     if not name:
@@ -278,6 +483,7 @@ def _parse_og_integer(name: str) -> Optional[int]:
         return int(match.group(1))
     except ValueError:
         return None
+
 
 def _find_nuclear_group(db_all: Optional[Sequence[Dict[str, Any]]], og_int: Optional[int]) -> Optional[Dict[str, Any]]:
     if og_int is None or not db_all:
@@ -294,7 +500,11 @@ def _normalize_label(label: Optional[str]) -> str:
 def _normalize_coord(coord: Optional[str]) -> str:
     return (coord or "").replace(" ", "").lower()
 
-def _find_matching_wyckoff(nuclear_group: Dict[str, Any], wyckoff: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+
+def _find_matching_wyckoff(
+    nuclear_group: Dict[str, Any],
+    wyckoff: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
     if not nuclear_group or not wyckoff:
         return None
     candidates = nuclear_group.get("wyckoff", [])
@@ -303,22 +513,20 @@ def _find_matching_wyckoff(nuclear_group: Dict[str, Any], wyckoff: Dict[str, Any
     label_norm = _normalize_label(label)
     coord_norm = _normalize_coord(coord)
 
-    # Prefer exact label+coord match.
     for w in candidates:
         if w.get("label") == label and w.get("coord") == coord:
             return w
 
-    # Try normalized match (spaces/case).
     for w in candidates:
         if _normalize_label(w.get("label")) == label_norm and _normalize_coord(w.get("coord")) == coord_norm:
             return w
 
-    # Fallback: match by label only.
     for w in candidates:
         if w.get("label") == label or _normalize_label(w.get("label")) == label_norm:
             return w
 
     return None
+
 
 def _normalize_frac_vec(v: Sequence[float]) -> List[float]:
     out: List[float] = []
@@ -537,72 +745,19 @@ def build_group_permutation_matrices(
 
     return matrices
 
-def _tensor_product_spin(electric_basis: List[List[float]], spin_vec: Sequence[float]) -> List[List[float]]:
-    if not electric_basis:
-        return []
-    block = len(electric_basis[0])
-    out: List[List[float]] = []
-    for b in electric_basis:
-        vec = [0.0] * (3 * block)
-        for s in range(3):
-            if abs(spin_vec[s]) < 1e-12:
-                continue
-            offset = s * block
-            for i, val in enumerate(b):
-                vec[offset + i] = spin_vec[s] * val
-        out.append(vec)
-    return out
 
-def _normalize_vec3(v: Sequence[float]) -> Optional[Tuple[float, float, float]]:
-    if not v or len(v) < 3:
-        return None
-    norm = math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])
-    if norm < 1e-9:
-        return None
-    return (v[0] / norm, v[1] / norm, v[2] / norm)
 
-def _soc_dipole_vector(basis_soc_rank1: List[List[float]]) -> Optional[Tuple[float, float, float]]:
-    if not basis_soc_rank1:
-        return None
-    if len(basis_soc_rank1) == 1:
-        return _normalize_vec3(basis_soc_rank1[0])
+def _tensor_product_spin(vec_spatial: Sequence[float], spin_vec: Sequence[float]) -> np.ndarray:
+    """Return the tensor product Q (rank L-1) ⊗ S (rank 1) as a flattened rank-L vector.
 
-    # Build a representative dipole direction from the SOC basis.
-    sx = sum(v[0] for v in basis_soc_rank1)
-    sy = sum(v[1] for v in basis_soc_rank1)
-    sz = sum(v[2] for v in basis_soc_rank1)
-    return _normalize_vec3((sx, sy, sz))
-
-def _compute_no_soc_basis(
-    db_all: Optional[Sequence[Dict[str, Any]]],
-    group: Dict[str, Any],
-    wyckoff: Optional[Dict[str, Any]],
-    rank: int,
-    ops_soc: Sequence[Op],
-) -> List[List[float]]:
-    if wyckoff is None:
-        return compute_multipoles(rank=rank, ops=ops_soc, multipole_mode="magnetic")
-
-    og_int = _parse_og_integer(group.get("name", ""))
-    nuclear_group = _find_nuclear_group(db_all, og_int)
-    nuclear_wyck = _find_matching_wyckoff(nuclear_group, wyckoff) if nuclear_group else None
-    if not nuclear_wyck:
-        return compute_multipoles(rank=rank, ops=ops_soc, multipole_mode="magnetic")
-
-    if rank <= 1:
-        electric_basis = [[1.0]]
-    else:
-        if not nuclear_group:
-            return compute_multipoles(rank=rank, ops=ops_soc, multipole_mode="magnetic")
-        site_ops_nuclear = get_site_ops(nuclear_group, nuclear_wyck)
-        ops_e = [Op(R=op["R"], tr=int(op.get("tr", 1)) or 1) for op in site_ops_nuclear]
-        electric_basis = compute_multipoles(rank=rank - 1, ops=ops_e, multipole_mode="electric")
-
-    if not electric_basis:
-        return compute_multipoles(rank=rank, ops=ops_soc, multipole_mode="magnetic")
-
-    spin_vec = _soc_dipole_vector(compute_multipoles(rank=1, ops=ops_soc, multipole_mode="magnetic"))
-    return [] if spin_vec is None else _tensor_product_spin(electric_basis, spin_vec)
+    Both inputs are flattened vectors in base-3 ordering. The result is a
+    length 3**L vector suitable for stacking per-site.
+    """
+    a = np.array(vec_spatial, dtype=float)
+    b = np.array(spin_vec, dtype=float)
+    # Important: order spin ⊗ spatial so the spin index is the first tensor index
+    # (matching flattening used elsewhere: full_index = spin_index * sub_dim + spatial_index)
+    return np.kron(b, a)
 
 
 def _combine_basis_vectors(basis_list: Sequence[Sequence[float]], tol: float = 1e-8) -> List[List[float]]:
@@ -619,73 +774,6 @@ def _combine_basis_vectors(basis_list: Sequence[Sequence[float]], tol: float = 1
     if rank <= 0:
         return []
     return [row.tolist() for row in vh[:rank]]
-
-
-def _sum_basis_vectors(basis_list: Sequence[Sequence[float]], tol: float = 1e-8) -> List[List[float]]:
-    if not basis_list:
-        return []
-    mat = np.array(basis_list, dtype=float)
-    if mat.ndim != 2:
-        return []
-    summed = np.sum(mat, axis=0)
-    if np.linalg.norm(summed) < tol:
-        return []
-    return [summed.tolist()]
-
-
-def _sum_basis_by_index(basis_sets: Sequence[Sequence[Sequence[float]]], tol: float = 1e-8) -> List[List[float]]:
-    if not basis_sets:
-        return []
-    max_len = max((len(b) for b in basis_sets), default=0)
-    if max_len == 0:
-        return []
-    dim = len(basis_sets[0][0]) if basis_sets[0] else 0
-    if dim == 0:
-        return []
-    summed: List[np.ndarray] = [np.zeros(dim, dtype=float) for _ in range(max_len)]
-    for basis in basis_sets:
-        for idx, vec in enumerate(basis):
-            if idx >= max_len:
-                break
-            summed[idx] += np.array(vec, dtype=float)
-    output: List[List[float]] = []
-    for vec in summed:
-        if np.linalg.norm(vec) >= tol:
-            output.append(vec.tolist())
-    return output
-
-
-def _align_and_sum_site_tensors(
-    basis_sets: Sequence[Sequence[Sequence[float]]],
-    tol: float = 1e-8,
-) -> List[List[float]]:
-    # Deprecated: keep for reference, but prefer _sum_basis_by_index for same-weight sums.
-    if not basis_sets:
-        return []
-    ref_basis = [np.array(v, dtype=float) for v in basis_sets[0]]
-    if not ref_basis:
-        return []
-    dim = len(ref_basis[0])
-    ref_mat = np.column_stack(ref_basis)
-    total_coeffs = np.zeros(len(ref_basis), dtype=float)
-
-    for basis in basis_sets:
-        if not basis:
-            continue
-        B = np.column_stack([np.array(v, dtype=float) for v in basis])
-        try:
-            coeffs, _, _, _ = np.linalg.lstsq(B, ref_mat, rcond=None)
-        except np.linalg.LinAlgError:
-            continue
-        total_coeffs += coeffs.sum(axis=1)
-
-    if np.linalg.norm(total_coeffs) < tol:
-        return []
-
-    summed_tensor = ref_mat @ total_coeffs
-    if np.linalg.norm(summed_tensor) < tol:
-        return []
-    return [summed_tensor.reshape(dim).tolist()]
 
 
 # --------------------------
@@ -762,6 +850,10 @@ def compute_results(
     include_soc: bool = True,
     db_all: Optional[Sequence[Dict[str, Any]]] = None,
     magnetic_sites: Optional[Sequence[str]] = None,
+    lattice_matrix: Optional[Sequence[Sequence[float]]] = None,
+    frontend_atom_tensors_by_rank: Optional[Dict[int, List[List[List[float]]]]] = None,
+    group_index: Optional[int] = None,
+    wyckoff_index: Optional[Union[int, str]] = None,
 ) -> Dict[str, Any]:
     site_ops_raw = get_site_ops(group, wyckoff)
     ops: List[Op] = []
@@ -770,29 +862,31 @@ def compute_results(
         ops.append(Op(R=op["R"], tr=tr))
 
     ranks = []
-    force_forbidden_all = False
 
     magnetic_labels = None
     if magnetic_sites:
         magnetic_labels = {str(site).lower() for site in magnetic_sites}
 
-    if not include_soc and mode == "magnetic":
-        skip_force_forbidden = wyckoff is None and magnetic_labels
-        if not skip_force_forbidden:
-            soc_dipole = _soc_dipole_vector(
-                compute_multipoles(rank=1, ops=ops, multipole_mode="magnetic")
-            )
-            if soc_dipole is None:
-                force_forbidden_all = True
+    lattice = np.eye(3, dtype=float)
+    use_cartesian_ops = False
+    if lattice_matrix is not None:
+        try:
+            candidate = np.array(lattice_matrix, dtype=float)
+            if candidate.shape == (3, 3):
+                det_candidate = float(np.linalg.det(candidate))
+                if abs(det_candidate) > 1e-8:
+                    lattice = candidate
+                    use_cartesian_ops = True
+        except Exception:
+            use_cartesian_ops = False
+
     for r in range(1, max_rank + 1):
-        if force_forbidden_all:
-            basis = []
-        elif include_soc or mode != "magnetic":
+        if include_soc or mode != "magnetic":
             basis = compute_multipoles(rank=r, ops=ops, multipole_mode=mode)
         elif wyckoff is None:
             if magnetic_labels:
                 summed_basis: List[List[float]] = []
-                for w in group.get("wyckoff", []):
+                for w_idx, w in enumerate(group.get("wyckoff", [])):
                     label = str(w.get("label", "")).lower()
                     if label not in magnetic_labels:
                         continue
@@ -804,29 +898,45 @@ def compute_results(
                         wyckoff=w,
                         rank=r,
                         ops_soc=ops_site,
+                        group_index=group_index,
+                        wyckoff_index=w_idx,
+                        lattice_matrix=lattice_matrix,
                     )
                     if basis_site:
-                        orbit_ops = _get_orbit_ops(group, w)
-                        for vec in basis_site:
-                            total = np.zeros(len(vec), dtype=float)
-                            for op in orbit_ops:
-                                tr = int(op.get("tr", 1)) if op.get("tr", 1) is not None else 1
-                                detR = float(np.linalg.det(op["R"]))
-                                factor = tr * detR
-                                total += factor * _apply_op_to_tensor(vec, r, op["R"])
-                            if np.linalg.norm(total) > 1e-8:
-                                summed_basis.append(total.tolist())
-                basis = summed_basis
+                        summed_basis.extend(basis_site)
+                basis = _combine_basis_vectors(summed_basis)
             else:
                 basis = []
         else:
-            basis = _compute_no_soc_basis(
+            # Use new permutation-aware no-SOC implementation which builds global
+            # stacked site tensors. To preserve the old API (per-site basis vectors
+            # of length 3**rank), extract the reference-site block (site 0) from
+            # each global basis vector.
+            global_basis = compute_no_soc_tensor_with_permutations(
                 db_all=db_all,
                 group=group,
                 wyckoff=wyckoff,
                 rank=r,
-                ops_soc=ops,
+                spin_vector=None,
+                group_index=group_index,
+                wyckoff_index=wyckoff_index,
+                lattice_matrix=lattice_matrix,
             )
+            if not global_basis:
+                basis = []
+            else:
+                # Determine orbit size and per-site dim
+                coords, _ = _build_orbit_mapping(group, wyckoff)
+                n_sites = len(coords)
+                dim_site = 3 ** r
+                basis = []
+                for gb in global_basis:
+                    arr = np.array(gb, dtype=float)
+                    if arr.size != n_sites * dim_site:
+                        # unexpected shape; skip
+                        continue
+                    site0 = arr.reshape((n_sites, dim_site))[0]
+                    basis.append(site0.tolist())
         ranks.append({
             "rank": r,
             "basis_count": len(basis),

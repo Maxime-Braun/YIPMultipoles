@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import math
 import sys
+import re
 from pathlib import Path
 from typing import List, Sequence
 
@@ -27,6 +28,7 @@ from backend.app.engine.multipole import (
     get_site_ops,
     Op,
 )
+from backend.app.core.alignment_store import set_alignment
 
 TOL = 1e-4
 
@@ -65,14 +67,36 @@ def _normalize_frac(v: Sequence[float]) -> List[float]:
     return out
 
 
+# Forward-declare _parse_coord_expr to satisfy static analyzers.
+# The real implementation appears later in this file and will override
+# this placeholder at module import time.
+def _parse_coord_expr(expr: str, x: float, y: float, z: float) -> float:
+    return 0.0
+
+
 def _parse_coord_parts(coord: str) -> List[float]:
     parts = [p.strip() for p in coord.split(",")]
 
     def parse_const(s: str) -> float:
+        s = s.strip()
+        # If expression contains coordinate variables, defer to symbolic parser
+        if any(ch in s for ch in ("x", "y", "z")):
+            # Use the same placeholder values as other helpers when
+            # evaluating expressions with x,y,z.
+            try:
+                return _parse_coord_expr(s, 0.123, 0.234, 0.345)
+            except Exception:
+                return 0.0
         if "/" in s:
-            n, d = s.split("/")
-            return float(n) / float(d)
-        return float(s)
+            try:
+                n, d = s.split("/")
+                return float(n) / float(d)
+            except Exception:
+                return 0.0
+        try:
+            return float(s)
+        except Exception:
+            return 0.0
 
     return [parse_const(p) for p in parts]
 
@@ -365,6 +389,45 @@ def main() -> None:
 
     groups = _analyze_atom_ordering_rank1(rank1_basis, orbit)
     groups_payload = _split_groups(groups)
+
+    # Print detailed alignment groups for user visibility
+    print(f"Computed raw groups (count={len(groups)}):")
+    for g in groups:
+        print(f"  group id {g.get('id')}: members = {[m['atom_idx'] for m in g.get('members', [])]}")
+        for m in g.get('members', []):
+            print(f"    atom {m['atom_idx']}: relation={m.get('relation')} relation_to_ref={m.get('relation_to_ref')}")
+
+    print(f"Split alignment payload groups (count={len(groups_payload)}): {groups_payload}")
+
+    # Build and store alignment payload into the alignment store so backend
+    # helpers (e.g. _alignment_signs) can retrieve the alignment during
+    # later computations. This mirrors the payload sent by the frontend.
+    alignment_entries = []
+    any_incomparable = False
+    for g in groups:
+        gid = g.get('id')
+        for m in g.get('members', []):
+            idx_atom = m.get('atom_idx')
+            rel = m.get('relation_to_ref', 'Incomparable')
+            if rel not in ('Same', 'Opposite'):
+                any_incomparable = True
+            alignment_entries.append({
+                'group_id': gid,
+                'atom_index': idx_atom,
+                'relation_to_ref': rel,
+                'coord': coords[idx_atom] if idx_atom is not None and idx_atom < len(coords) else None,
+            })
+
+    payload = {
+        'group_index': idx,
+        'wyckoff_index': args.wyckoff,
+        'rank': 1,
+        'any_incomparable': any_incomparable,
+        'alignment': alignment_entries,
+        'groups': groups_payload,
+    }
+    # store into in-memory alignment cache
+    set_alignment(payload)
 
     accepted = filter_nuclear_group_ops_by_alignment(db, group, coords, groups_payload)
     matrices = build_group_permutation_matrices(accepted, coords, groups_payload)
