@@ -3124,10 +3124,21 @@ async function populateWyckoff(idx) {
                 comps[d] = `${sign}${ratioStr}${lbl}`;
                 // Use canonical variable color
                 colors[d] = varColors[rep];
+                // Ensure label is included in definitions if not already
+                if (!(lbl in usedLabels) && repLabel in labelMap) {
+                  // Try to add a definition for this label if possible
+                  usedLabels[lbl] = repLabel;
+                }
               } else {
                 // multi-term: replace full expression with label if available
                 const lbl = labelMap[e];
-                if (lbl) comps[d] = lbl;
+                if (lbl) {
+                  comps[d] = lbl;
+                  // Ensure label is included in definitions if not already
+                  if (!(lbl in usedLabels) && e in labelMap) {
+                    usedLabels[lbl] = e;
+                  }
+                }
               }
             }
 

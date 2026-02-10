@@ -404,14 +404,27 @@ def compute_no_soc_tensor_with_permutations(
     wyckoff_index: Optional[Union[int, str]] = None,
     lattice_matrix: Optional[Sequence[Sequence[float]]] = None,
 ) -> List[List[float]]:
-    """Construct no-SOC magnetic tensors by coupling electric (rank n-1) and dipoles."""
+    """
+    Construct no-SOC magnetic tensors by coupling electric (rank n-1) and dipole bases.
+
+    Steps:
+    1. Compute the electric basis (rank n-1) for the nuclear group and Wyckoff position.
+    2. Compute the magnetic dipole basis for the site (rank 1, magnetic mode).
+    3. For each pair (electric, dipole), form the tensor product to get a candidate rank-n tensor.
+    4. For each site in the Wyckoff orbit, apply the corresponding symmetry operation (rotation R, time-reversal tr).
+    5. Optionally multiply by an alignment sign (currently a scalar, but should be a vector for non-collinear cases).
+    6. Stack all site tensors to form the global tensor for the orbit.
+    7. Collect all linearly independent tensors and orthonormalize.
+    """
     if rank < 1:
         return []
 
+    # Step 1: Compute electric basis (rank n-1, electric mode)
     electric_basis = _compute_no_soc_electric_basis(db_all, group, wyckoff, rank)
     if not electric_basis:
         return []
 
+    # Step 2: Compute dipole basis (rank 1, magnetic mode)
     if spin_vector is not None:
         dipole_basis = [list(spin_vector)]
     else:
@@ -421,11 +434,13 @@ def compute_no_soc_tensor_with_permutations(
     if not dipole_basis:
         return []
 
+    # Step 3: Build mapping from group operators to site indices
     coords, op_to_index = _build_orbit_mapping(group, wyckoff)
     n_sites = len(coords)
     if n_sites == 0:
         return []
 
+    # For each site, find the corresponding symmetry operator
     op_for_site: List[Dict[str, Any]] = [None] * n_sites  # type: ignore[list-item]
     for op_idx, op in enumerate(group.get("operators", [])):
         site_idx = op_to_index.get(op_idx)
@@ -433,44 +448,39 @@ def compute_no_soc_tensor_with_permutations(
             continue
         if op_for_site[site_idx] is None:
             op_for_site[site_idx] = op
+    # Fill missing ops with identity
     for i, op in enumerate(op_for_site):
         if op is None:
             op_for_site[i] = {"R": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], "t": [0.0, 0.0, 0.0], "tr": 1}
 
-    alignment_signs = _alignment_signs(group_index, wyckoff_index, 1)
-    if not alignment_signs:
-        alignment_signs = _infer_alignment_signs_from_ops(dipole_basis, op_for_site)
-
-    if alignment_signs:
-        signs = [alignment_signs.get(i, 0) for i in range(n_sites)]
-    else:
-        signs = [1] * n_sites
-
+    # Step 4: For each (dipole, electric) pair, build the tensor for the full orbit using local dipole vectors
     dim_site = 3 ** rank
     sub_rank = rank - 1
 
     basis_list: List[List[float]] = []
     for s in dipole_basis:
-        spin_vec = np.array(s, dtype=float)
+        ref_spin_vec = np.array(s, dtype=float)  # Reference dipole (e.g., for atom 1)
         for e in electric_basis:
             site_tensors = []
             for site_idx in range(n_sites):
-                sign = signs[site_idx]
-                if sign == 0:
-                    site_tensors.append(np.zeros(dim_site, dtype=float))
-                    continue
                 op = op_for_site[site_idx]
-                R = op["R"]
+                R = np.array(op["R"], dtype=float)
+                tr = int(op.get("tr", 1)) if op.get("tr", 1) is not None else 1
+                # Transform electric basis to site orientation
                 if sub_rank <= 0:
                     e_trans = np.array(e, dtype=float)
                 else:
                     e_trans = _apply_op_to_tensor(e, sub_rank, R)
-                spin_site = spin_vec * sign
+                # Compute local dipole for this site: S_k = tr * R @ S_1
+                spin_site = tr * R @ ref_spin_vec
+                # Form tensor product: electric (rank n-1) x local dipole (rank 1)
                 tensor = _tensor_product_spin(e_trans.tolist(), spin_site.tolist())
                 site_tensors.append(tensor)
+            # Step 6: Stack all site tensors for the orbit
             stacked = np.concatenate(site_tensors)
             basis_list.append(stacked.tolist())
 
+    # Step 7: Combine and orthonormalize basis vectors
     return _combine_basis_vectors(basis_list)
 
 def _parse_og_integer(name: str) -> Optional[int]:
