@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Mag Sym Multipoles</title>
-    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="icon" type="image/png" href="/LogoTabbar.png?v=2">
     <style>
     body { font-family: sans-serif; padding: 20px; }
     .container { max-width: 1200px; margin: 0 auto; }
@@ -198,6 +201,18 @@
         border: 1px solid rgba(255,255,255,0.08);
         margin-top: 10px;
         }
+                /* Ensure only the container draws the border and canvas doesn't add extra lines */
+                #viewer3d {
+                    box-sizing: border-box;
+                    overflow: hidden;
+                }
+                #viewer3d canvas {
+                    border: none !important;
+                    display: block;
+                    width: 100% !important;
+                    height: 100% !important;
+                    box-sizing: border-box;
+                }
         .logo-footer {
         margin-top: 28px;
         padding: 0px 0px;
@@ -248,7 +263,7 @@
     <div class="container">
         <div class="controls">
             <div class="controls-header">
-                <img class="header-logo" src="public/logo.png" alt="Multipole logo"/>
+                <img class="header-logo" src="/logo.png" alt="Multipole logo"/>
                 <div class="header-controls">
                     <div class="controls-row">
                         <label class="control-group">
@@ -354,10 +369,10 @@
         <pre id="debugLog" style="font-family: monospace; background: #222; color: #eee; padding: 8px; display: none; white-space: pre-wrap; max-height: 240px; overflow: auto; margin-top: 12px;"></pre>
         <div class="logo-footer" aria-label="Logo placeholder section">
             <div class="logo-strip">
-                <div class="logo-placeholder"><img src="public/Neel.png" alt="Neel logo"/></div>
-                <div class="logo-placeholder"><img src="public/CNRS.png" alt="Crns logo"/></div>
-                <div class="logo-placeholder"><img src="public/ANR.png" alt="ANR logo"/></div>
-                <div class="logo-placeholder"><img src="public/PEPR.png" alt="PEPR logo"/></div>
+                <div class="logo-placeholder"><img src="/Neel.png" alt="Neel logo"/></div>
+                <div class="logo-placeholder"><img src="/CNRS.png" alt="Crns logo"/></div>
+                <div class="logo-placeholder"><img src="/ANR.png" alt="ANR logo"/></div>
+                <div class="logo-placeholder"><img src="/PEPR.png" alt="PEPR logo"/></div>
             </div>
         </div>
     </div>
