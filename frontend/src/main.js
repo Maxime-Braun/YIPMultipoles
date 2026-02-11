@@ -1,5 +1,28 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import {
+  parseMcifValue,
+  parseMcifString,
+  tokenizeMcifRow,
+  extractMcifRaw,
+  extractMcifTag,
+  parseMcifMagneticGroup,
+  parseMcifAtomFract,
+  parseMcifAtomCoords,
+  parseMcifMagneticLabels,
+  parseMcifAtomSites,
+  renderMcifAtomHeader,
+  parseWyckoffComponent,
+  evalWyckoffComponent,
+  normalizeFrac,
+  fracClose,
+  solveWyckoffVars,
+  inferWyckoffLabelFromCoord,
+  getMcifOccupiedMagneticSites,
+  getMcifMagneticSitesFromCoords,
+  buildMcifAtomSitesWithWyckoff,
+  parseMcifCellParams
+} from "./mcifParser.js";
 
 
 window.THREE = THREE;
@@ -48,510 +71,9 @@ window.OrbitControls = OrbitControls;
   let MCIF_ATOM_COORDS = null;
   let MCIF_MAGNETIC_LABELS = null;
   let SUPPRESS_CELL_PARAM_MODAL_ONCE = false;
+  let isMcifImporting = false;
 
-        function parseMcifValue(raw) {
-          if (!raw) return null;
-          const cleaned = String(raw)
-            .replace(/["']/g, "")
-            .replace(/\([^)]*\)/g, "")
-            .trim();
-          const val = parseFloat(cleaned);
-          return Number.isFinite(val) ? val : null;
-        }
-
-        function parseMcifString(raw) {
-          if (!raw) return null;
-          return String(raw).replace(/[\"']/g, "").trim();
-        }
-
-        function tokenizeMcifRow(line) {
-          if (!line) return [];
-          const tokens = line.match(/'(?:[^']*)'|"(?:[^"]*)"|\S+/g);
-          return tokens ? tokens.map(t => t.trim()) : [];
-        }
-
-        function extractMcifRaw(text, tag) {
-          const re = new RegExp(`${tag}\\s+([^\\r\\n]+)`, "i");
-          const match = text.match(re);
-          return match ? match[1].trim() : null;
-        }
-
-        function extractMcifTag(text, tag) {
-          const raw = extractMcifRaw(text, tag);
-          return raw ? parseMcifValue(raw) : null;
-        }
-
-        function parseMcifMagneticGroup(text) {
-          const numRaw = extractMcifRaw(text, "_space_group_magn.number_BNS") ||
-            extractMcifRaw(text, "_space_group_magn.number_bns") ||
-            extractMcifRaw(text, "_magnetic_space_group.number_BNS");
-          if (numRaw) {
-            const match = numRaw.match(/[\d.]+/);
-            if (match) return match[0];
-          }
-
-          const nameRaw = extractMcifRaw(text, "_space_group_magn.name_BNS") ||
-            extractMcifRaw(text, "_space_group_magn.name_bns") ||
-            extractMcifRaw(text, "_magnetic_space_group.name_BNS");
-          if (nameRaw) {
-            const bnsMatch = nameRaw.match(/BNS:\s*([\d.]+)/i);
-            if (bnsMatch) return bnsMatch[1];
-            const numMatch = nameRaw.match(/[\d.]+/);
-            if (numMatch) return numMatch[0];
-          }
-
-          const fallback = text.match(/BNS:\s*([\d.]+)/i);
-          if (fallback) return fallback[1];
-          return null;
-        }
-
-        function parseMcifAtomFract(text) {
-          const lines = text.split(/\r?\n/);
-          let i = 0;
-          while (i < lines.length) {
-            const line = lines[i].trim();
-            if (line.toLowerCase() === "loop_") {
-              const headers = [];
-              i += 1;
-              while (i < lines.length) {
-                const hdr = lines[i].trim();
-                if (!hdr || hdr.startsWith("#")) {
-                  i += 1;
-                  continue;
-                }
-                if (!hdr.startsWith("_")) break;
-                headers.push(hdr);
-                i += 1;
-              }
-              const xIdx = headers.findIndex(h => h.toLowerCase() === "_atom_site_fract_x");
-              const yIdx = headers.findIndex(h => h.toLowerCase() === "_atom_site_fract_y");
-              const zIdx = headers.findIndex(h => h.toLowerCase() === "_atom_site_fract_z");
-              if (xIdx >= 0 && yIdx >= 0 && zIdx >= 0) {
-                while (i < lines.length) {
-                  const dataLine = lines[i].trim();
-                  if (!dataLine || dataLine.startsWith("#")) {
-                    i += 1;
-                    continue;
-                  }
-                  if (dataLine.startsWith("_") || dataLine.toLowerCase() === "loop_" || dataLine.startsWith("data_")) {
-                    break;
-                  }
-                  const parts = tokenizeMcifRow(dataLine);
-                  if (parts.length >= headers.length) {
-                    const x = parseMcifValue(parts[xIdx]);
-                    const y = parseMcifValue(parts[yIdx]);
-                    const z = parseMcifValue(parts[zIdx]);
-                    if ([x, y, z].every(v => v !== null)) {
-                      return { x, y, z };
-                    }
-                  }
-                  i += 1;
-                }
-              }
-            }
-            i += 1;
-          }
-          return null;
-        }
-
-        function parseMcifAtomCoords(text) {
-          const lines = text.split(/\r?\n/);
-          let i = 0;
-          while (i < lines.length) {
-            const line = lines[i].trim();
-            if (line.toLowerCase() === "loop_") {
-              const headers = [];
-              i += 1;
-              while (i < lines.length) {
-                const hdr = lines[i].trim();
-                if (!hdr || hdr.startsWith("#")) {
-                  i += 1;
-                  continue;
-                }
-                if (!hdr.startsWith("_")) break;
-                headers.push(hdr);
-                i += 1;
-              }
-              const lowerHeaders = headers.map(h => h.toLowerCase().trim());
-              const labelIdx = lowerHeaders.findIndex(h =>
-                h === "_atom_site_label" ||
-                h === "_atom_site_type_symbol" ||
-                h === "_atom_site_symbol" ||
-                h.includes("_atom_site_label") ||
-                h.includes("_atom_site_type_symbol")
-              );
-              const xIdx = lowerHeaders.findIndex(h => h === "_atom_site_fract_x");
-              const yIdx = lowerHeaders.findIndex(h => h === "_atom_site_fract_y");
-              const zIdx = lowerHeaders.findIndex(h => h === "_atom_site_fract_z");
-              if (labelIdx >= 0 && xIdx >= 0 && yIdx >= 0 && zIdx >= 0) {
-                const sites = [];
-                while (i < lines.length) {
-                  const dataLine = lines[i].trim();
-                  if (!dataLine || dataLine.startsWith("#")) {
-                    i += 1;
-                    continue;
-                  }
-                  if (dataLine.startsWith("_") || dataLine.toLowerCase() === "loop_" || dataLine.startsWith("data_")) {
-                    break;
-                  }
-                  const parts = tokenizeMcifRow(dataLine);
-                  if (parts.length >= headers.length) {
-                    const label = parseMcifString(parts[labelIdx]);
-                    const x = parseMcifValue(parts[xIdx]);
-                    const y = parseMcifValue(parts[yIdx]);
-                    const z = parseMcifValue(parts[zIdx]);
-                    if (label && [x, y, z].every(v => v !== null)) {
-                      sites.push({ label, coord: [x, y, z] });
-                    }
-                  }
-                  i += 1;
-                }
-                if (sites.length > 0) return sites;
-              }
-            }
-            i += 1;
-          }
-          return [];
-        }
-
-        function parseMcifMagneticLabels(text) {
-          const lines = text.split(/\r?\n/);
-          let i = 0;
-          while (i < lines.length) {
-            const line = lines[i].trim();
-            if (line.toLowerCase() === "loop_") {
-              const headers = [];
-              i += 1;
-              while (i < lines.length) {
-                const hdr = lines[i].trim();
-                if (!hdr || hdr.startsWith("#")) {
-                  i += 1;
-                  continue;
-                }
-                if (!hdr.startsWith("_")) break;
-                headers.push(hdr);
-                i += 1;
-              }
-              const lowerHeaders = headers.map(h => h.toLowerCase());
-              const labelIdx = lowerHeaders.findIndex(h => h === "_atom_site_moment.label");
-              if (labelIdx >= 0) {
-                const labels = [];
-                while (i < lines.length) {
-                  const dataLine = lines[i].trim();
-                  if (!dataLine || dataLine.startsWith("#")) {
-                    i += 1;
-                    continue;
-                  }
-                  if (dataLine.startsWith("_") || dataLine.toLowerCase() === "loop_" || dataLine.startsWith("data_")) {
-                    break;
-                  }
-                  const parts = tokenizeMcifRow(dataLine);
-                  if (parts.length >= headers.length) {
-                    const label = parseMcifString(parts[labelIdx]);
-                    if (label) labels.push(label);
-                  }
-                  i += 1;
-                }
-                return labels;
-              }
-            }
-            i += 1;
-          }
-          return [];
-        }
-
-        function parseMcifAtomSites(text) {
-          const lines = text.split(/\r?\n/);
-          let i = 0;
-          while (i < lines.length) {
-            const line = lines[i].trim();
-            if (line.toLowerCase() === "loop_") {
-              const headers = [];
-              i += 1;
-              while (i < lines.length) {
-                const hdr = lines[i].trim();
-                if (!hdr || hdr.startsWith("#")) {
-                  i += 1;
-                  continue;
-                }
-                if (!hdr.startsWith("_")) break;
-                headers.push(hdr);
-                i += 1;
-              }
-
-              const lowerHeaders = headers.map(h => h.toLowerCase().trim());
-              const labelIdx = lowerHeaders.findIndex(h =>
-                h === "_atom_site_label" ||
-                h === "_atom_site_type_symbol" ||
-                h === "_atom_site_symbol" ||
-                h.includes("_atom_site_label") ||
-                h.includes("_atom_site_type_symbol")
-              );
-              const wyckoffIdx = lowerHeaders.findIndex(h =>
-                h === "_atom_site_wyckoff_symbol" ||
-                h === "_atom_site_wyckoff_letter" ||
-                h === "_atom_site_wyckoff" ||
-                h.includes("_atom_site_wyckoff")
-              );
-              const multIdx = lowerHeaders.findIndex(h =>
-                h === "_atom_site_symmetry_multiplicity" ||
-                h.includes("_atom_site_symmetry_multiplicity")
-              );
-
-              if (labelIdx >= 0 && wyckoffIdx >= 0) {
-                const sites = [];
-                while (i < lines.length) {
-                  const dataLine = lines[i].trim();
-                  if (!dataLine || dataLine.startsWith("#")) {
-                    i += 1;
-                    continue;
-                  }
-                  if (dataLine.startsWith("_") || dataLine.toLowerCase() === "loop_" || dataLine.startsWith("data_")) {
-                    break;
-                  }
-                  const parts = tokenizeMcifRow(dataLine);
-                  if (parts.length >= headers.length) {
-                    const label = parseMcifString(parts[labelIdx]);
-                    const wyckoffSym = parseMcifString(parts[wyckoffIdx]);
-                    const multRaw = multIdx >= 0 ? parseMcifString(parts[multIdx]) : null;
-                    const mult = multRaw ? String(multRaw).replace(/\D/g, "") : "";
-                    const wyckoff = wyckoffSym ? `${mult}${wyckoffSym}` : null;
-                    if (label && wyckoff) {
-                      sites.push({ label, wyckoff });
-                    }
-                  }
-                  i += 1;
-                }
-
-                if (sites.length > 0) return sites;
-              }
-            }
-            i += 1;
-          }
-          return [];
-        }
-
-        function renderMcifAtomHeader(atomSites) {
-          const header = document.getElementById("mcifAtomHeader");
-          if (!header) return;
-
-          if (!atomSites || atomSites.length === 0) {
-            header.innerHTML = "";
-            header.style.display = "none";
-            return;
-          }
-
-          const formatLabel = (label) => {
-            if (!label) return "";
-            const match = String(label).match(/^(.*?)(\d+)$/);
-            if (!match) return String(label);
-            const base = match[1];
-            const digits = match[2];
-            return `${base}<sub>${digits}</sub>`;
-          };
-          const magneticLabels = Array.isArray(MCIF_MAGNETIC_LABELS)
-            ? new Set(MCIF_MAGNETIC_LABELS.map(l => String(l).toLowerCase()))
-            : new Set();
-          const items = atomSites
-            .map(site => {
-              const isMagnetic = site && site.label && magneticLabels.has(String(site.label).toLowerCase());
-              const labelHtml = formatLabel(site.label);
-              const labelSpan = isMagnetic
-                ? `<span style="color:#c62828; font-weight:700;">${labelHtml}</span>`
-                : labelHtml;
-              return `${labelSpan}: ${site.wyckoff}`;
-            })
-            .join(", ");
-          header.innerHTML = `Atoms (Wyckoff): ${items}`;
-          header.style.display = "block";
-        }
-
-        function parseWyckoffComponent(s) {
-          const res = { x: 0, y: 0, z: 0, c: 0 };
-          if (!s) return res;
-          let expr = s.replace(/\s+/g, '').toLowerCase();
-          let terms = expr.replace(/-/g, '+-').split('+').filter(t => t !== '');
-          terms.forEach(t => {
-            let coeff = 1;
-            if (t.startsWith('-')) {
-              coeff = -1;
-              t = t.substring(1);
-            }
-            if (t.startsWith('+')) t = t.substring(1);
-            if (t.includes('x')) {
-              let val = t.replace('x', '');
-              if (val === '') val = '1';
-              res.x += coeff * parseFloat(val);
-            } else if (t.includes('y')) {
-              let val = t.replace('y', '');
-              if (val === '') val = '1';
-              res.y += coeff * parseFloat(val);
-            } else if (t.includes('z')) {
-              let val = t.replace('z', '');
-              if (val === '') val = '1';
-              res.z += coeff * parseFloat(val);
-            } else if (t) {
-              if (t.includes('/')) {
-                const [n, d] = t.split('/');
-                res.c += coeff * (parseFloat(n) / parseFloat(d));
-              } else {
-                res.c += coeff * parseFloat(t);
-              }
-            }
-          });
-          return res;
-        }
-
-        function evalWyckoffComponent(comp, vars) {
-          return comp.x * vars.x + comp.y * vars.y + comp.z * vars.z + comp.c;
-        }
-
-        function normalizeFrac(val) {
-          let v = val - Math.floor(val + 1e-8);
-          if (Math.abs(v - 1.0) < 1e-6) v = 0.0;
-          return v;
-        }
-
-        function fracClose(a, b, tol = 1e-3) {
-          const diff = Math.abs(a - b);
-          return diff < tol || Math.abs(diff - 1) < tol;
-        }
-
-        function solveWyckoffVars(components, targetCoord) {
-          const A = components.map(c => [c.x, c.y, c.z]);
-          const b = components.map((c, i) => normalizeFrac(targetCoord[i] - c.c));
-          const det = det3x3(A);
-          if (Math.abs(det) > 1e-6) {
-            const shifts = [-1, 0, 1];
-            for (let dx of shifts) for (let dy of shifts) for (let dz of shifts) {
-              const bShift = [b[0] + dx, b[1] + dy, b[2] + dz];
-              const inv = invertMatrix3x3(A);
-              const vars = {
-                x: inv[0][0] * bShift[0] + inv[0][1] * bShift[1] + inv[0][2] * bShift[2],
-                y: inv[1][0] * bShift[0] + inv[1][1] * bShift[1] + inv[1][2] * bShift[2],
-                z: inv[2][0] * bShift[0] + inv[2][1] * bShift[1] + inv[2][2] * bShift[2]
-              };
-              if ([vars.x, vars.y, vars.z].every(v => isFinite(v))) {
-                return vars;
-              }
-            }
-          }
-          const vars = { x: 0, y: 0, z: 0 };
-          const solved = { x: false, y: false, z: false };
-          components.forEach((c, idx) => {
-            const coeffs = [c.x, c.y, c.z];
-            const nonZero = coeffs.filter(v => Math.abs(v) > 1e-6).length;
-            if (nonZero === 1) {
-              const val = normalizeFrac(targetCoord[idx] - c.c);
-              if (Math.abs(c.x) > 1e-6) {
-                vars.x = val / c.x;
-                solved.x = true;
-              } else if (Math.abs(c.y) > 1e-6) {
-                vars.y = val / c.y;
-                solved.y = true;
-              } else if (Math.abs(c.z) > 1e-6) {
-                vars.z = val / c.z;
-                solved.z = true;
-              }
-            }
-          });
-          if (solved.x || solved.y || solved.z) return vars;
-          return null;
-        }
-
-        function inferWyckoffLabelFromCoord(group, coord) {
-          if (!group || !Array.isArray(group.wyckoff)) return null;
-          const matches = [];
-          for (const w of group.wyckoff) {
-            if (!w || !w.coord) continue;
-            const parts = w.coord.split(',');
-            if (parts.length !== 3) continue;
-            const comps = parts.map(parseWyckoffComponent);
-            const vars = solveWyckoffVars(comps, coord);
-            let isMatch = false;
-            if (!vars) {
-              const fixed = comps.every((c, idx) =>
-                Math.abs(c.x) < 1e-6 && Math.abs(c.y) < 1e-6 && Math.abs(c.z) < 1e-6 &&
-                fracClose(normalizeFrac(c.c), normalizeFrac(coord[idx]))
-              );
-              isMatch = fixed;
-            } else {
-              const evalCoord = comps.map(c => normalizeFrac(evalWyckoffComponent(c, vars)));
-              const matchesCoord = evalCoord.every((v, idx) => fracClose(v, normalizeFrac(coord[idx])));
-              isMatch = matchesCoord;
-            }
-            if (isMatch) {
-              const label = w.label || '';
-              const multMatch = label.match(/^(\d+)/);
-              const multiplicity = multMatch ? parseInt(multMatch[1], 10) : Number.POSITIVE_INFINITY;
-              const varCount = comps.reduce((count, c) => {
-                const varsHere = [c.x, c.y, c.z].filter(v => Math.abs(v) > 1e-6).length;
-                return count + (varsHere > 0 ? 1 : 0);
-              }, 0);
-              matches.push({ label, multiplicity, varCount });
-            }
-          }
-          if (!matches.length) return null;
-          matches.sort((a, b) => {
-            if (a.multiplicity !== b.multiplicity) return a.multiplicity - b.multiplicity;
-            return a.varCount - b.varCount;
-          });
-          return matches[0].label || null;
-        }
-
-        function getMcifOccupiedMagneticSites() {
-          if (!MCIF_ATOM_SITES || MCIF_ATOM_SITES.length === 0) return null;
-          const labels = MCIF_ATOM_SITES
-            .map(site => site.wyckoff)
-            .filter(Boolean)
-            .map(val => String(val).trim())
-            .filter(Boolean);
-          if (labels.length === 0) return null;
-          return Array.from(new Set(labels));
-        }
-
-        function getMcifMagneticSitesFromCoords() {
-          if (!currentGroup || !Array.isArray(MCIF_ATOM_COORDS) || MCIF_ATOM_COORDS.length === 0) {
-            return null;
-          }
-          const magneticLabels = Array.isArray(MCIF_MAGNETIC_LABELS) ? MCIF_MAGNETIC_LABELS : [];
-          if (magneticLabels.length === 0) return null;
-          const labelSet = new Set(magneticLabels.map(l => String(l).toLowerCase()));
-          const inferred = [];
-          MCIF_ATOM_COORDS.forEach(site => {
-            if (!site || !site.label || !Array.isArray(site.coord)) return;
-            if (!labelSet.has(String(site.label).toLowerCase())) return;
-            const wyck = inferWyckoffLabelFromCoord(currentGroup, site.coord);
-            if (wyck) inferred.push(wyck);
-          });
-          return inferred.length ? Array.from(new Set(inferred)) : null;
-        }
-
-        function buildMcifAtomSitesWithWyckoff(group) {
-          if (Array.isArray(MCIF_ATOM_SITES) && MCIF_ATOM_SITES.length > 0) {
-            const hasWyckoff = MCIF_ATOM_SITES.some(site => site && site.wyckoff);
-            if (hasWyckoff) return MCIF_ATOM_SITES;
-          }
-          if (!group || !Array.isArray(MCIF_ATOM_COORDS) || MCIF_ATOM_COORDS.length === 0) return MCIF_ATOM_SITES || [];
-          const inferred = MCIF_ATOM_COORDS.map(site => {
-            const wyckoff = inferWyckoffLabelFromCoord(group, site.coord);
-            return wyckoff ? { label: site.label, wyckoff } : null;
-          }).filter(Boolean);
-          return inferred.length > 0 ? inferred : (MCIF_ATOM_SITES || []);
-        }
-
-        function parseMcifCellParams(text) {
-          const params = {
-            a: extractMcifTag(text, "_cell_length_a"),
-            b: extractMcifTag(text, "_cell_length_b"),
-            c: extractMcifTag(text, "_cell_length_c"),
-            alpha: extractMcifTag(text, "_cell_angle_alpha"),
-            beta: extractMcifTag(text, "_cell_angle_beta"),
-            gamma: extractMcifTag(text, "_cell_angle_gamma")
-          };
-          if (Object.values(params).some(v => v === null)) return null;
-          return params;
-        }
+// ...existing code...
 
         function showCellParamsError(msg) {
           if (!cellParamsError) return;
@@ -774,6 +296,25 @@ window.OrbitControls = OrbitControls;
           }
           if (MAGNETIC_OCCUPIED_PENDING) return MAGNETIC_OCCUPIED_PENDING;
           if (!currentGroup || !currentGroup.wyckoff) return Promise.resolve(null);
+          // If mcif is imported and No-SOC system, resolve immediately and do not show modal
+          const includeSoc = document.getElementById('includeSocSwitch') ? document.getElementById('includeSocSwitch').checked : true;
+          const wSel = document.getElementById("wyckoffSelect")?.value;
+          if (!includeSoc && wSel === "whole" && MCIF_ATOM_SITES && MCIF_ATOM_SITES.length) {
+            // Only auto-fill occupied magnetic sites from MCIF if they actually are listed
+            // in MCIF_MAGNETIC_LABELS. This avoids including non-magnetic atoms (e.g. F1).
+            const magneticSet = Array.isArray(MCIF_MAGNETIC_LABELS) && MCIF_MAGNETIC_LABELS.length
+              ? new Set(MCIF_MAGNETIC_LABELS.map(l => String(l).toLowerCase()))
+              : null;
+            if (magneticSet) {
+              MAGNETIC_OCCUPIED_SITES = MCIF_ATOM_SITES
+                .filter(site => site && site.label && magneticSet.has(String(site.label).toLowerCase()))
+                .map(site => site.label || site[0] || "");
+            } else {
+              // Fallback: if no magnetic labels present, keep previous behaviour
+              MAGNETIC_OCCUPIED_SITES = MCIF_ATOM_SITES.map(site => site.label || site[0] || "");
+            }
+            return Promise.resolve(MAGNETIC_OCCUPIED_SITES);
+          }
           MAGNETIC_OCCUPIED_PENDING = new Promise(resolve => {
             MAGNETIC_OCCUPIED_RESOLVE = resolve;
             openMagneticSitesModal(currentGroup);
@@ -813,6 +354,7 @@ window.OrbitControls = OrbitControls;
         }
 
         if (importMcifBtn && mcifFileInput) {
+
           importMcifBtn.onclick = () => mcifFileInput.click();
           mcifFileInput.onchange = async () => {
             const file = mcifFileInput.files && mcifFileInput.files[0];
@@ -838,6 +380,46 @@ window.OrbitControls = OrbitControls;
             MCIF_ATOM_SITES = mcifAtomSites ? [...mcifAtomSites] : null;
             MCIF_ATOM_COORDS = mcifAtomCoords ? [...mcifAtomCoords] : null;
             MCIF_MAGNETIC_LABELS = mcifMagneticLabels ? [...mcifMagneticLabels] : null;
+
+            // Always attribute wyckoff site to magnetic atoms when importing mcif for no SOC system
+            const includeSoc = document.getElementById('includeSocSwitch') ? document.getElementById('includeSocSwitch').checked : true;
+            const wSel = document.getElementById("wyckoffSelect")?.value;
+            if (!includeSoc && wSel === "whole" && MCIF_ATOM_COORDS && MCIF_ATOM_COORDS.length && MCIF_MAGNETIC_LABELS && MCIF_MAGNETIC_LABELS.length) {
+              // Use buildMcifAtomSitesWithWyckoff to attribute wyckoff as in the header
+              const allSitesWithWyckoff = (typeof buildMcifAtomSitesWithWyckoff === 'function' && currentGroup)
+                ? buildMcifAtomSitesWithWyckoff(currentGroup)
+                : [];
+              const magneticSet = new Set(MCIF_MAGNETIC_LABELS.map(l => String(l).toLowerCase()));
+              MCIF_ATOM_SITES = allSitesWithWyckoff.filter(site => site.label && magneticSet.has(String(site.label).toLowerCase()));
+              window.MCIF_ATOM_SITES = MCIF_ATOM_SITES;
+              console.debug('[DEBUG] Attributed wyckoff to magnetic atoms (no SOC, using buildMcifAtomSitesWithWyckoff):', MCIF_ATOM_SITES);
+            } else if ((!MCIF_ATOM_SITES || MCIF_ATOM_SITES.length === 0) && MCIF_ATOM_COORDS && MCIF_ATOM_COORDS.length && MCIF_MAGNETIC_LABELS && MCIF_MAGNETIC_LABELS.length) {
+              // Fallback: original logic for other cases
+              const magneticSet = new Set(MCIF_MAGNETIC_LABELS.map(l => String(l).toLowerCase()));
+              MCIF_ATOM_SITES = MCIF_ATOM_COORDS
+                .filter(site => site.label && magneticSet.has(String(site.label).toLowerCase()))
+                .map(site => ({
+                  label: site.label,
+                  wyckoff: (typeof inferWyckoffLabelFromCoord === 'function' && currentGroup && site.coord)
+                    ? inferWyckoffLabelFromCoord(currentGroup, site.coord)
+                    : ""
+                }));
+              window.MCIF_ATOM_SITES = MCIF_ATOM_SITES;
+              console.debug('[DEBUG] Synthesized MCIF_ATOM_SITES from coords and magnetic labels (with wyckoff):', MCIF_ATOM_SITES);
+            }
+            // Ensure cache is available on window for mcifParser.js
+            window.MCIF_ATOM_VARS = MCIF_ATOM_VARS;
+            window.MCIF_ATOM_SITES = MCIF_ATOM_SITES;
+            window.MCIF_ATOM_COORDS = MCIF_ATOM_COORDS;
+            window.MCIF_MAGNETIC_LABELS = MCIF_MAGNETIC_LABELS;
+            console.debug('[DEBUG] After MCIF import:', {
+              MCIF_ATOM_SITES,
+              MCIF_ATOM_COORDS,
+              MCIF_MAGNETIC_LABELS,
+              mcifAtomSites,
+              mcifAtomCoords,
+              mcifMagneticLabels
+            });
             renderMcifAtomHeader(buildMcifAtomSitesWithWyckoff(currentGroup));
             const mcifOccupied = getMcifOccupiedMagneticSites();
             if (mcifOccupied && mcifOccupied.length) {
@@ -845,11 +427,65 @@ window.OrbitControls = OrbitControls;
             }
 
             if (mcifGroup && groupInput) {
+              isMcifImporting = true;
               groupInput.value = mcifGroup;
               if (typeof groupInput.onchange === "function") {
                 await groupInput.onchange({ target: groupInput });
               } else {
                 groupInput.dispatchEvent(new Event("change"));
+              }
+              isMcifImporting = false;
+              // Recompute MCIF_ATOM_SITES after group selection so wyckoff can be inferred using currentGroup
+              try {
+                if (typeof buildMcifAtomSitesWithWyckoff === 'function' && currentGroup) {
+                  const inferredSites = buildMcifAtomSitesWithWyckoff(currentGroup);
+                  // Merge inferred wyckoff labels into original MCIF_ATOM_SITES where possible
+                  const originalSites = Array.isArray(MCIF_ATOM_SITES) ? MCIF_ATOM_SITES.slice() : [];
+                  console.debug('[DEBUG] original MCIF_ATOM_SITES before merge:', originalSites);
+                  console.debug('[DEBUG] inferredSites to merge:', inferredSites);
+                  const merged = originalSites.length ? originalSites.slice() : [];
+                  inferredSites.forEach(inf => {
+                    const idx = merged.findIndex(s => s && s.label && String(s.label).trim() === String(inf.label).trim());
+                    if (idx >= 0) {
+                      merged[idx] = { ...merged[idx], wyckoff: inf.wyckoff || merged[idx].wyckoff || "" };
+                    } else {
+                      merged.push({ label: inf.label, wyckoff: inf.wyckoff || "" });
+                    }
+                  });
+                  MCIF_ATOM_SITES = merged.length ? merged : inferredSites;
+                  window.MCIF_ATOM_SITES = MCIF_ATOM_SITES;
+                  console.debug('[DEBUG] Recomputed and merged MCIF_ATOM_SITES after group selection:', MCIF_ATOM_SITES);
+                  renderMcifAtomHeader(MCIF_ATOM_SITES);
+                  const mcifOccupiedAfter = getMcifOccupiedMagneticSites();
+                  if (mcifOccupiedAfter && mcifOccupiedAfter.length) {
+                    MAGNETIC_OCCUPIED_SITES = mcifOccupiedAfter;
+                  }
+                  // If exactly one magnetic wyckoff was detected and includeSoc is false,
+                  // select that Wyckoff position (to match manual selection behavior) and recompute.
+                  try {
+                    const includeSocNow = document.getElementById('includeSocSwitch') ? document.getElementById('includeSocSwitch').checked : true;
+                    if (!includeSocNow && Array.isArray(mcifOccupiedAfter) && mcifOccupiedAfter.length === 1) {
+                      const desiredLabel = mcifOccupiedAfter[0];
+                      const wyckoffSel = document.getElementById('wyckoffSelect');
+                      if (wyckoffSel && currentGroup && Array.isArray(currentGroup.wyckoff)) {
+                        // find index of matching wyckoff label in group
+                        const idx = currentGroup.wyckoff.findIndex(w => (w && w.label && String(w.label).trim().toLowerCase()) === String(desiredLabel).trim().toLowerCase());
+                        if (idx >= 0) {
+                          wyckoffSel.value = String(idx);
+                          if (typeof wyckoffSel.onchange === 'function') {
+                            await wyckoffSel.onchange({ target: wyckoffSel });
+                          } else {
+                            wyckoffSel.dispatchEvent(new Event('change'));
+                          }
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    console.error('Error auto-selecting Wyckoff after MCIF import:', e);
+                  }
+                }
+              } catch (e) {
+                console.error('Error recomputing MCIF_ATOM_SITES after group selection:', e);
               }
             }
 
@@ -988,10 +624,10 @@ window.OrbitControls = OrbitControls;
     // In this app we expose the site tensor using the SAME Y(l,m) slider UI as tensor_visualizer (built from the site-symmetry basis).
     // Keep a no-op to avoid runtime errors if compute() calls it.
     // If true: backend already provides per-site tensors/multipoles in global frame.
-// Rendering must NOT apply extra symmetry sign (detR*tr) per atom.
+    // If false: we must compute them from the site tensor.
     let TENSORS_ALREADY_PER_SITE = true;
     let multipoleMode = 'magnetic'; // 'magnetic' or 'electric'
-// Global registry of canonical variable labels (persistent across atoms in current position)
+    // Global registry of canonical variable labels (persistent across atoms in current position)
 const VARIABLE_REGISTRY_BY_KEY = {};
 const GLOBAL_EXPR_LABELS_BY_KEY = {};
     let MAGNETIC_OCCUPIED_SITES = null;
@@ -1050,16 +686,21 @@ function sendAlignmentToBackend({ groupIndex, wyckoffIndex, rank, alignment, any
             db = groups; // [{index, name}]
             const sel = document.getElementById('groupSelect');
             sel.innerHTML = '';
-      const placeholder = document.createElement('option');
-      placeholder.value = '';
-      placeholder.text = 'Select MSG...';
-      sel.appendChild(placeholder);
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.text = 'Select MSG...';
+            sel.appendChild(placeholder);
             db.forEach(g => {
-                const opt = document.createElement('option');
-                opt.value = g.index;
-                opt.text = g.name;
-                sel.appendChild(opt);
+              const opt = document.createElement('option');
+              opt.value = g.index;
+              opt.text = g.name;
+              sel.appendChild(opt);
             });
+
+            // Always reset group select and BNS input to blank on page load
+            sel.value = '';
+            const groupInput = document.getElementById('groupNumberInput');
+            if (groupInput) groupInput.value = '';
 
             const updateInputFromSelect = () => {
                 const idx = parseInt(sel.value);
@@ -1074,6 +715,18 @@ function sendAlignmentToBackend({ groupIndex, wyckoffIndex, rank, alignment, any
 
             MAGNETIC_OCCUPIED_SITES = null;
 
+            // Only reset mcif data if not triggered by mcif import
+            if (!isMcifImporting) {
+              MCIF_ATOM_VARS = null;
+              MCIF_ATOM_SITES = null;
+              MCIF_ATOM_COORDS = null;
+              MCIF_MAGNETIC_LABELS = null;
+              window.MCIF_ATOM_VARS = null;
+              window.MCIF_ATOM_SITES = null;
+              window.MCIF_ATOM_COORDS = null;
+              window.MCIF_MAGNETIC_LABELS = null;
+            }
+
             resetWyckoffSelectionAndClearViewer();
             document.getElementById("results").innerHTML = "";
             document.getElementById("status").innerText = "Select a Wyckoff position…";
@@ -1082,8 +735,8 @@ function sendAlignmentToBackend({ groupIndex, wyckoffIndex, rank, alignment, any
 
             const wSel = document.getElementById("wyckoffSelect");
             if (wSel) {
-                wSel.value = "";
-                wSel.selectedIndex = 0;
+              wSel.value = "";
+              wSel.selectedIndex = 0;
             }
             };
 
@@ -1103,19 +756,31 @@ function sendAlignmentToBackend({ groupIndex, wyckoffIndex, rank, alignment, any
                     });
                 }
 
-               if (idx !== -1) {
-                    // BUG 4 FIX: group changed => clear everything
+                 if (idx !== -1) {
+                  // Only reset if not triggered by mcif import
+                  if (!isMcifImporting) {
                     resetWyckoffSelectionAndClearViewer();
                     document.getElementById("results").innerHTML = "";
                     document.getElementById("status").innerText = "Select a Wyckoff position…";
 
-                    sel.value = db[idx].index;
-                    updateInputFromSelect();
-                    await populateWyckoff(sel.value);
+                    // Clear mcif-related variables so the app forgets the imported mcif
+                    MCIF_ATOM_VARS = null;
+                    MCIF_ATOM_SITES = null;
+                    MCIF_ATOM_COORDS = null;
+                    MCIF_MAGNETIC_LABELS = null;
+                    window.MCIF_ATOM_VARS = null;
+                    window.MCIF_ATOM_SITES = null;
+                    window.MCIF_ATOM_COORDS = null;
+                    window.MCIF_MAGNETIC_LABELS = null;
+                  }
 
-                    // force placeholder (so nothing appears until user selects)
-                    const wSel = document.getElementById("wyckoffSelect");
-                    if (wSel) { wSel.value = ""; wSel.selectedIndex = 0; }
+                  sel.value = db[idx].index;
+                  updateInputFromSelect();
+                  await populateWyckoff(sel.value);
+
+                  // force placeholder (so nothing appears until user selects)
+                  const wSel = document.getElementById("wyckoffSelect");
+                  if (wSel) { wSel.value = ""; wSel.selectedIndex = 0; }
                 }
 
             };
@@ -1417,7 +1082,7 @@ async function populateWyckoff(idx) {
             // Add placeholder
             const placeholder = document.createElement('option');
             placeholder.value = "";
-            placeholder.text = "Select Position...";
+            placeholder.text = "Select";
             sel.appendChild(placeholder);
 
             // Add option to compute using the whole space group (all symmetry operations)
@@ -1489,8 +1154,31 @@ async function populateWyckoff(idx) {
         async function ensureMagneticOccupiedSites(options = {}) {
           const force = !!options.force;
           if (!force && MAGNETIC_OCCUPIED_SITES && MAGNETIC_OCCUPIED_SITES.length) {
+            console.debug('[DEBUG] ensureMagneticOccupiedSites: Already have sites:', MAGNETIC_OCCUPIED_SITES);
+            if (magneticSitesModal && magneticSitesModal.style.display === "block") {
+              console.debug('[DEBUG] Closing modal because sites already set.');
+              magneticSitesModal.style.display = "none";
+            }
             return MAGNETIC_OCCUPIED_SITES;
           }
+          // If mcif is imported and No-SOC system, auto-select all sites and skip modal
+          const includeSoc = document.getElementById('includeSocSwitch') ? document.getElementById('includeSocSwitch').checked : true;
+          const wSel = document.getElementById("wyckoffSelect")?.value;
+          console.debug('[DEBUG] ensureMagneticOccupiedSites: includeSoc', includeSoc, 'wSel', wSel, 'MCIF_ATOM_SITES', MCIF_ATOM_SITES);
+          if (!includeSoc && wSel === "whole" && MCIF_ATOM_SITES && MCIF_ATOM_SITES.length && MCIF_MAGNETIC_LABELS && MCIF_MAGNETIC_LABELS.length) {
+            // Only select magnetic atoms (those in MCIF_MAGNETIC_LABELS)
+            const magneticSet = new Set(MCIF_MAGNETIC_LABELS.map(l => String(l).toLowerCase()));
+            MAGNETIC_OCCUPIED_SITES = MCIF_ATOM_SITES
+              .filter(site => site.label && magneticSet.has(String(site.label).toLowerCase()))
+              .map(site => site.label || site[0] || "");
+            console.debug('[DEBUG] Auto-selecting only magnetic MCIF_ATOM_SITES:', MAGNETIC_OCCUPIED_SITES);
+            if (magneticSitesModal && magneticSitesModal.style.display === "block") {
+              console.debug('[DEBUG] Closing modal because MCIF_MAGNETIC_LABELS present.');
+              magneticSitesModal.style.display = "none";
+            }
+            return MAGNETIC_OCCUPIED_SITES;
+          }
+          console.debug('[DEBUG] Falling through to requestMagneticOccupiedSites, force:', force);
           return await requestMagneticOccupiedSites({ force });
         }
 
@@ -1501,11 +1189,33 @@ async function populateWyckoff(idx) {
         const wSel = document.getElementById("wyckoffSelect")?.value;
         const includeSoc = document.getElementById('includeSocSwitch') ? document.getElementById('includeSocSwitch').checked : true;
         if (!includeSoc && wSel === "whole" && multipoleMode === 'magnetic') {
-          const { hasSites } = getMagneticSitesCandidates();
-          const picked = await ensureMagneticOccupiedSites({ force: !hasSites });
-          if (!picked) {
-            document.getElementById("status").innerText = "Please specify occupied magnetic sites for No-SOC system.";
-            return;
+          // If mcif is imported, auto-select occupied magnetic sites (prefer wyckoff labels)
+          if (MCIF_ATOM_SITES && MCIF_ATOM_SITES.length) {
+            const mcifOccupiedWyck = (typeof getMcifOccupiedMagneticSites === 'function')
+              ? getMcifOccupiedMagneticSites()
+              : null;
+            if (mcifOccupiedWyck && mcifOccupiedWyck.length) {
+              MAGNETIC_OCCUPIED_SITES = mcifOccupiedWyck;
+            } else {
+              // Fallback: only include atom labels that are present in MCIF_MAGNETIC_LABELS
+              const magneticSet = Array.isArray(MCIF_MAGNETIC_LABELS) && MCIF_MAGNETIC_LABELS.length
+                ? new Set(MCIF_MAGNETIC_LABELS.map(l => String(l).toLowerCase()))
+                : null;
+              if (magneticSet) {
+                MAGNETIC_OCCUPIED_SITES = MCIF_ATOM_SITES
+                  .filter(site => site && site.label && magneticSet.has(String(site.label).toLowerCase()))
+                  .map(site => site.label || site[0] || "");
+              } else {
+                MAGNETIC_OCCUPIED_SITES = MCIF_ATOM_SITES.map(site => site.label || site[0] || "");
+              }
+            }
+          } else {
+            const { hasSites } = getMagneticSitesCandidates();
+            const picked = await ensureMagneticOccupiedSites({ force: !hasSites });
+            if (!picked) {
+              document.getElementById("status").innerText = "Please specify occupied magnetic sites for No-SOC system.";
+              return;
+            }
           }
         }
         await triggerCompute();           // your normal compute
@@ -1629,6 +1339,12 @@ async function populateWyckoff(idx) {
     magnetic_sites: magneticSitesPayload
             };
 
+            console.debug('[DEBUG] compute payload before fetch:', {
+              payload,
+              MCIF_MAGNETIC_LABELS: window.MCIF_MAGNETIC_LABELS,
+              candidateSites: candidateSites,
+              MAGNETIC_OCCUPIED_SITES
+            });
             const data = await fetchJSON(`${API_BASE}/compute`, {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
@@ -1992,8 +1708,6 @@ async function populateWyckoff(idx) {
                 }
                 clearIsoGroup();
                 _lastOrbitForTensor = null;
-
-                // ✅ clear stale sliders too
                 clearTensorSlidersUI();
                 return;
                 }
@@ -2011,7 +1725,6 @@ async function populateWyckoff(idx) {
             // Build the orbit from the Wyckoff + random vars, then render spheres
             const orbit = getWyckoffOrbit(currentGroup, w, wyckoffRandomVars);
             renderOrbitSpheres(orbit);
-            // ✅ Update hover tooltip UP/DOWN/NCL AFTER spheres exist
             const selectedRank = getSelectedRank();
             if (selectedRank) {
             const basis = getBasisForRank(selectedRank);
@@ -3221,7 +2934,7 @@ async function populateWyckoff(idx) {
                         const m = item.member;
                         const p = m.atom;
                         const coordStr = p.coordSym || p.coord.map(x => decimalToFraction(x)).join(',');
-                        const opStr = p.op.str || "Unknown";
+                        const op  = p.op?.str || "Unknown";
                         
                         let relText = "";
                         const relToRef = m.relationToRef || m.relation;
@@ -3236,6 +2949,9 @@ async function populateWyckoff(idx) {
                         let atomLabel = `Atom ${i+1}`;
                         if (i === 0) atomLabel += " (Rep.)";
 
+                        // Fix: define opStr before use
+                        const opStr = p.op?.str || p.opStr || "Unknown";
+
                         const card = document.createElement('div');
                         card.style.cssText = `padding: 8px; border-radius: 4px; cursor: pointer; transition: transform 0.1s; ${item.style}`;
                         card.onmouseover = () => card.style.transform = "scale(1.02)";
@@ -3243,20 +2959,20 @@ async function populateWyckoff(idx) {
                         card.onclick = () => showTensorForAtom(p, i, false);
 
                         card.innerHTML = `
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                    <span style="font-weight: bold;">${atomLabel}</span>
-                                    ${ item.groupSize && item.groupSize > 1 ? (() => {
-                                        let badgeStyle = `font-size: 0.85em; font-weight: bold; padding: 2px 6px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.1);`;
-                                        if (item.groupColor === 'green') badgeStyle += ' background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7;';
-                                        else if (item.groupColor === 'red') badgeStyle += ' background: #ffebee; color: #b71c1c; border-color: #ef9a9a;';
-                                        else badgeStyle += ' background: rgba(255,255,255,0.6); color: #000;';
-                                        return `<span style="${badgeStyle}">Group ${item.groupId + 1}</span>`;
-                                    })() : '' }
-                                </div>
-                                <div style="font-size: 0.9em;">Pos: ${coordStr}</div>
-                                <div style="font-size: 0.85em; margin-top: 4px; font-family: monospace;">Op: ${opStr}</div>
-                                <div style="margin-top: 4px; font-weight: bold;">${relText}</div>
-                              `;
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                              <span style="font-weight: bold;">${atomLabel}</span>
+                              ${ item.groupSize && item.groupSize > 1 ? (() => {
+                                let badgeStyle = `font-size: 0.85em; font-weight: bold; padding: 2px 6px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.1);`;
+                                if (item.groupColor === 'green') badgeStyle += ' background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7;';
+                                else if (item.groupColor === 'red') badgeStyle += ' background: #ffebee; color: #b71c1c; border-color: #ef9a9a;';
+                                else badgeStyle += ' background: rgba(255,255,255,0.6); color: #000;';
+                                return `<span style="${badgeStyle}">Group ${item.groupId + 1}</span>`;
+                              })() : '' }
+                            </div>
+                            <div style="font-size: 0.9em;">Pos: ${coordStr}</div>
+                            <div style="font-size: 0.85em; margin-top: 4px; font-family: monospace;">Op: ${opStr}</div>
+                            <div style="margin-top: 4px; font-weight: bold;">${relText}</div>
+                            `;
                         grid.appendChild(card);
                     }
                     
@@ -5247,7 +4963,7 @@ function discoverAllowedHarmonicsFromBasis(fullRank, basis, spinIndex, eps = 1e-
 // ===== tensor_visualizer-style VARIABLE persistence (here: basis coefficients) =====
 // rank(fullRank) -> coeffs array (length = basis.length)
 const GLOBAL_BASIS_COEFFS = {};   // like GLOBAL_VARIABLE_VALUES in tensor_visualizer
-// Registry is declared at top-of-file to keep labels stable across atoms
+// Registry is declared at top-of-file to keep labels stable across atoms in current position
 
 let TV_STATE = {}; // rank -> { harmonics: [[l,m],...], weights: [...] }
 
