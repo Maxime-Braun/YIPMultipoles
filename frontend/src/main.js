@@ -636,7 +636,9 @@ const GLOBAL_EXPR_LABELS_BY_KEY = {};
 
         
 // Load Data (moved to backend API)
-const API_BASE = (import.meta.env.VITE_API_BASE || (window.location.origin + "/api"));
+// Allow overriding the API base from the page (useful for gh-pages deploys):
+// set `window.__API_BASE__ = 'https://your-backend.example.com'` in index.html before the bundle.
+const API_BASE = (window.__API_BASE__ || import.meta.env.VITE_API_BASE || (window.location.origin + "/api"));
         async function fetchJSON(url, options) {
             const res = await fetch(url, options);
             if (!res.ok) {
