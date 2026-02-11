@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Mag Sym Multipoles</title>
+    <link rel="icon" type="image/png" href="/LogoTabbar.png?v=2">
+    <style>
+    body { font-family: sans-serif; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .controls { margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px; }
+        select, button, input { padding: 8px; margin-right: 10px; }
+        .controls-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: 16px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .controls-header .controls-row {
+            margin-bottom: 0;
+        }
+        .header-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1 1 520px;
+            min-width: 320px;
+        }
+        .header-logo {
+            height: 120px;
+            width: auto;
+            display: block;
+        }
+        .controls-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .controls-row:last-child {
+            margin-bottom: 0;
+        }
+        .control-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .control-label {
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .results { margin-top: 20px; }
+        .rank-block { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
+        .rank-title { font-weight: bold; margin-bottom: 10px; background: #eee; padding: 5px; }
+        .matrix-display { font-family: monospace; white-space: pre; overflow-x: auto; }
+        .loading { color: #666; font-style: italic; }
+        
+        /* Switch styles */
+        .switch {
+          position: relative;
+          display: inline-block;
+          width: 40px;
+          height: 20px;
+          vertical-align: middle;
+        }
+        .switch input { 
+          opacity: 0;
+          width: 0;
+          height: 0;
+          margin: 0;
+        }
+        .slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: #ccc;
+          -webkit-transition: .4s;
+          transition: .4s;
+          border-radius: 20px;
+        }
+        .slider:before {
+          position: absolute;
+          content: "";
+          height: 16px;
+          width: 16px;
+          left: 2px;
+          bottom: 2px;
+          background-color: white;
+          -webkit-transition: .4s;
+          transition: .4s;
+          border-radius: 50%;
+        }
+        input:checked + .slider {
+          background-color: #2196F3;
+        }
+        input:focus + .slider {
+          box-shadow: 0 0 1px #2196F3;
+        }
+        input:checked + .slider:before {
+          -webkit-transform: translateX(20px);
+          -ms-transform: translateX(20px);
+          transform: translateX(20px);
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 1000; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.4); 
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto; 
+            padding: 30px;
+            border: 1px solid #888;
+            width: 80%; 
+            max-width: 800px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            line-height: 1.6;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .help-step {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .help-step:last-child {
+            border-bottom: none;
+        }
+        .help-step h3 {
+            margin-top: 0;
+            color: #2196F3;
+        }
+/* --- Wyckoff occupancy line --- */
+        .wyckoff-occupancy{
+        flex-basis: 100%;      /* force it to go to a NEW LINE */
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+        }
+        .wyckoff-label{
+        font-weight: 600;
+        white-space: nowrap;
+        }
+
+        #wyckoffOccBoxes{
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 6px;
+        }
+
+        .wyckoff-item{
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 13px;
+        white-space: nowrap;
+        }
+
+        .wyckoff-item input{
+        width: 12px;
+        height: 12px;
+        margin: 0; 
+        }
+        #viewer3d{
+        width: 100%;
+        height: 420px;
+        background: #0f1116;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.08);
+        margin-top: 10px;
+        }
+        .logo-footer {
+        margin-top: 28px;
+        padding: 0px 0px;
+        background: #ffffff;
+        border: 1px dashed #ffffff;
+        border-radius: 10px;
+        }
+        .logo-footer h3 {
+        margin: 0 0 12px 0;
+        font-size: 1.05em;
+        color: #ffffff;
+        }
+        .logo-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        align-items: center;
+        justify-content: center;
+        }
+        .logo-placeholder {
+        width: 280px;
+        height: 140px;
+        border-radius: 8px;
+        border: 2px dashed #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.85em;
+        color: #ffffff;
+        background: #fff;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        }
+        .logo-placeholder img {
+        max-height: 104px;
+        max-width: 240px;
+        width: auto;
+        height: auto;
+        display: block;
+        }
+        .logo-neel {
+        max-height: 56px;
+        }
+    </style>
+    
+  <script type="module" crossorigin src="/assets/index-BoUknOwK.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="controls-header">
+                <img class="header-logo" src="/logo.png" alt="Multipole logo"/>
+                <div class="header-controls">
+                    <div class="controls-row">
+                        <label class="control-group">
+                            <span class="control-label">BNS No.:</span>
+                            <input type="text" id="groupNumberInput" placeholder="e.g. 1.1" style="width: 70px;">
+                        </label>
+                        <select id="groupSelect" style="max-width: 300px;"></select>
+                        <button id="importMcifBtn" type="button">Import .mcif</button>
+                        <label class="control-group">
+                            <span class="control-label">Wyckoff:</span>
+                            <select id="wyckoffSelect" style="max-width: 200px;"></select>
+                        </label>
+                        <input id="mcifFileInput" type="file" accept=".mcif,.cif,.txt" style="display: none;" />
+                    </div>
+                    <div class="controls-row" id="mcifAtomHeader" style="display: none; font-weight: 600; color: #333;"></div>
+                    <div class="controls-row">
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="crystalBasisSwitch">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">Crystal Basis</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="includeSocSwitch" checked>
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">SOC</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="voigtCheck">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">Voigt Notation</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="showLabelDefsSwitch">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">Label Def.</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="control-label" for="multipoleTypeSelect">Type:</label>
+                            <select id="multipoleTypeSelect" style="max-width: 140px;">
+                                <option value="magnetic" selected>Magnetic</option>
+                                <option value="electric">Electric</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label class="switch" style="margin-bottom: 0;">
+                                <input type="checkbox" id="visualizerSwitch">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="control-label">Visualizer</span>
+                        </div>
+                        <div class="control-group">
+                            <label class="control-label" for="rankIsoSelect">Pure rank:</label>
+                            <select id="rankIsoSelect" style="max-width: 180px;">
+                                <option value="1" selected>Dipole (Rank 1)</option>
+                                <option value="2">Quadrupole (Rank 2)</option>
+                                <option value="3">Octupole (Rank 3)</option>
+                                <option value="4">Hexadecapole (Rank 4)</option>
+                                <option value="5">Triakontadipole (Rank 5)</option>
+                            </select>
+                        </div>
+                        <button id="exportSceneBtn" type="button">Export Image (PNG)</button>
+                    </div>
+                </div>
+                <a href="#" id="helpLink" style="text-decoration: none; font-size: 1.1em; color: #2196F3; display: flex; align-items: center;">
+                <span style="margin-right: 5px;">❓</span> Help / Tutorial
+                </a>
+            </div>
+                <div id="visualizerPanel" style="display:none;">
+                <div id="viewer3d"></div>
+                <div id="atom-tooltip" style="
+                position: fixed;
+                display: none;
+                pointer-events: none;
+                background: rgba(255,255,255,0.95);
+                border: 1px solid rgba(0,0,0,0.15);
+                border-radius: 8px;
+                padding: 8px 10px;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                font-size: 12px;
+                color: #111;
+                z-index: 99999;
+                white-space: pre;
+                box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+                "></div>
+                <div id="tensorCoeffPanel" style="margin:10px 0; padding:10px; background:#fff; border:1px solid #ddd; border-radius:8px;">
+                    <b>Spherical harmonic weights</b>
+                    <div id="tensor-sliders" style="margin-top:8px;"></div>
+                    <div id="tensor-forbidden" style="margin-top:6px; color:#b00020; font-weight:600; display:none;"></div>
+                </div> 
+        </div>
+    </div>
+ </div>
+    <div id="status"></div>
+        <div id="results" class="results"></div> 
+        <pre id="debugLog" style="font-family: monospace; background: #222; color: #eee; padding: 8px; display: none; white-space: pre-wrap; max-height: 240px; overflow: auto; margin-top: 12px;"></pre>
+        <div class="logo-footer" aria-label="Logo placeholder section">
+            <div class="logo-strip">
+                <div class="logo-placeholder"><img src="/Neel.png" alt="Neel logo"/></div>
+                <div class="logo-placeholder"><img src="/CNRS.png" alt="Crns logo"/></div>
+                <div class="logo-placeholder"><img src="/ANR.png" alt="ANR logo"/></div>
+                <div class="logo-placeholder"><img src="/PEPR.png" alt="PEPR logo"/></div>
+            </div>
+        </div>
+    </div>
+    <div id="helpModal" class="modal">
+        <div class="modal-content">
+            <span id="helpModalClose" class="close">&times;</span>
+            <h2 style="margin-top: 0;">How to use this tool</h2>
+                <p>Welcome to Mag Sym Multipoles! This tool helps you determine allowed magnetic or electric multipoles for atoms in a crystal based on symmetry.</p>
+            <div class="help-step">
+                <h3>Step 1: Select a Magnetic Space Group</h3>
+                    <p>Start by identifying the <strong>Magnetic Space Group (MSG)</strong> or conventional space group of your crystal structure. You can:</p>
+                <ul>
+                    <li>Type the <strong>BNS number</strong> (e.g., "1.1" or "62.448") in the input box.</li>
+                    <li>Or select the group directly from the dropdown list.</li>
+                    <li>Optionally click <strong>Import .mcif</strong> to load the group and cell parameters from a file.</li>
+                </ul>
+            </div>
+            
+            <div class="help-step">
+                <h3>Step 2: Choose a Wyckoff Position</h3>
+                <p>Select the <strong>Wyckoff position</strong> where your magnetic atom is located. This is crucial because the local site symmetry determines which magnetic moments are allowed.</p>
+                <p><em>Note: The calculation will start automatically once you select a position.</em></p>
+            </div>
+            
+            <div class="help-step">
+                <h3>Step 3: Choose Mode & Options</h3>
+                <p>Select the <strong>Type</strong> (Magnetic or Electric) and configure the display options:</p>
+                <ul>
+                    <li><strong>Type:</strong> Magnetic applies axial/time-odd parity, Electric treats tensors as polar/time-even.</li>
+                    <li><strong>Include SOC:</strong> Toggle spin–orbit coupling for magnetic mode.</li>
+                    <li><strong>Voigt Notation:</strong> Simplify higher-rank tensor display.</li>
+                    <li><strong>Show label definitions:</strong> Expand or hide coefficient legend text.</li>
+                </ul>
+            </div>
+            
+            <div class="help-step">
+                <h3>Step 4: Visualize a Pure Rank</h3>
+                <p>Enable the <strong>Visualizer</strong> switch and choose a pure rank from the menu (Dipole, Quadrupole, Octupole, etc.).</p>
+                <ul>
+                    <li>The <strong>Orbit Viewer</strong> shows the atomic orbit and the isosurface for the selected rank.</li>
+                    <li>Use <strong>Export Image (PNG)</strong> to save a snapshot.</li>
+                </ul>
+            </div>
+
+            <div class="help-step">
+                <h3>Step 5: Interpret Results</h3>
+                <ul>
+                    <li><strong>Site Symmetry Operations:</strong> Lists the specific rotations and mirrors that leave the atomic site invariant.</li>
+                    <li><strong>Allowed Multipoles:</strong> Shows the mathematical form of the allowed tensor. Variables (e.g., <span style="color:hsl(0, 80%, 35%)">x</span>, <span style="color:hsl(137, 80%, 35%)">z</span>) represent independent degrees of freedom.</li>
+                    <li><strong>Atom Ordering:</strong> Visualizes the relationship between the representative atom (Atom 1) and other atoms in the same orbit.
+                        <ul>
+                                <li><span style="color: #b71c1c; background: #ffebee; padding: 2px 4px; border-radius: 3px;">Red (UP)</span>: Magnetic/electric multipole is parallel to Atom 1.</li>
+                                <li><span style="color: #0d47a1; background: #e3f2fd; padding: 2px 4px; border-radius: 3px;">Blue (DOWN)</span>: Magnetic/electric multipole is antiparallel to Atom 1.</li>
+                                <li><strong>Group badge</strong>: Shows `Group N` for groups with more than one member. Badge color indicates group relations: green = all members parallel, red = contains antiparallel members, neutral = non-collinear.</li>
+                                <li><strong>Ordering summary</strong>: The panel shows an overall ordering label derived from group relations (e.g., `Ferroically Order`, `Anti-Ferroically Order`, `Mixed / Non-collinear ordering`, or `NCL order`).</li>
+                                <li><strong>Type menu</strong>: Use the <em>Type</em> menu to switch between Magnetic and Electric multipoles.</li>
+                                <li><strong>Sublattice translation</strong>: For Rank-1 dipoles the tool attempts to find a pure-translation symmetry mapping the `Same` sublattice to the `Opposite` sublattice and displays the fractional translation `t` when found.</li>
+                        </ul>
+                    </li>
+                </ul>
+                <p><em>Tip: Toggle the <strong>"Voigt Notation"</strong> switch to simplify the display of higher-rank tensors (Rank 2+).</em></p>
+            </div>
+        </div>
+    </div>
+    <div id="cellParamsModal" class="modal">
+        <div class="modal-content" style="max-width: 460px;">
+            <span id="cellParamsClose" class="close">&times;</span>
+            <h2 id="cellParamsTitle" style="margin-top: 0;">Enter Cell Parameters</h2>
+            <p id="cellParamsMsg">Please provide lattice parameters for this system.</p>
+            <div id="cellParamsGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+                <label>a (Å): <input type="number" id="cell_a" step="0.001" value="1.0"></label>
+                <label>b (Å): <input type="number" id="cell_b" step="0.001" value="1.0"></label>
+                <label>c (Å): <input type="number" id="cell_c" step="0.001" value="1.0"></label>
+                <label>α (°): <input type="number" id="cell_alpha" step="0.1" value="90.0"></label>
+                <label>β (°): <input type="number" id="cell_beta" step="0.1" value="90.0"></label>
+                <label>γ (°): <input type="number" id="cell_gamma" step="0.1" value="90.0"></label>
+            </div>
+            <div id="cellParamsActions" style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button id="cancelCellParamsBtn" style="padding: 8px 14px; background: #eee; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">Use defaults</button>
+                <button id="applyCellParamsBtn" style="padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;">Apply</button>
+            </div>
+            <div id="cellParamsError" style="margin-top: 10px; color: #b00020; font-weight: 600; display: none;"></div>
+        </div>
+    </div>
+    <div id="magneticSitesModal" class="modal">
+        <div class="modal-content" style="max-width: 520px;">
+            <span id="magneticSitesClose" class="close">&times;</span>
+            <h2 style="margin-top: 0;">Select Magnetic Sites</h2>
+            <p id="magneticSitesMsg">Choose the Wyckoff sites occupied by magnetic atoms for No-SOC System.</p>
+            <div id="magneticSitesList" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;"></div>
+            <div id="magneticSitesActions" style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button id="magneticSitesCancelBtn" style="padding: 8px 14px; background: #eee; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">Cancel</button>
+                <button id="magneticSitesApplyBtn" style="padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;">Apply</button>
+            </div>
+            <div id="magneticSitesError" style="margin-top: 10px; color: #b00020; font-weight: 600; display: none;"></div>
+        </div>
+    </div>
+
+</body>
+</html>

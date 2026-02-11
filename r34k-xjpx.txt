@@ -1,0 +1,868 @@
+PHYSICAL REVIEW B 112, 014431 (2025)
+Color symmetry and altermagneticlike spin textures in noncollinear antiferromagnets
+Paolo G. Radaelli*
+Clarendon Laboratory, Department of Physics, University of Oxford , Oxford OX1 3PU, United Kingdom
+Gautam Gurung†
+Trinity College, University of Oxford , Oxford OX1 3BH, United Kingdom
+(Received 14 January 2025; revised 28 May 2025; accepted 12 June 2025; published 17 July 2025)
+We present a formalism based on color symmetry to analyze the momentum-space spin textures of non-
+collinear antiferromagnets. We show that, out of the spin textures allowed by the magnetic point group, one canextract a component that is invariant by general rotations in spin space, and can exist in the absence of spin-orbitcoupling, in complete analogy to spin textures in altermagnets. We demonstrate this approach in the case ofthree complex, noncollinear magnets, Mn
+3Ir(Ge,Si), Pb 2MnO 4,a n dM n 3GaN. For Mn 3GaN, we also show that
+the predictions of color-symmetry analysis are consistent with density functional theory calculations performedon the same system both with and without spin-orbit coupling.
+DOI: 10.1103/r34k-xjpx
+I. INTRODUCTION
+In the past ﬁve years, an intense theoretical and ex-
+perimental effort has been focused on magnetic systemshaving electronic bands with lifted spin degeneracy, partic-ularly when this is not due to spin-orbit coupling (SOC)(for example, Refs. [ 1,2]; see Ref. [ 3] for a full list of
+references). Collinear magnets with symmetry-driven com-pensated net magnetization displaying this phenomenologyhave been named “altermagnets,” though this term has beenapplied by others to a wider group of systems that displayspin splitting in momentum space; see for example Ref. [ 4].
+Three broad classes of magnetic materials are often includedin this extended classiﬁcation: altermagnets stricto sensu ;
+noncollinear compensated antiferromagnets that, like alter-magnets, have spin splitting that is k/−ksymmetric and
+time-reversal odd (TRO); and other systems, including so-called p-wave magnets [ 5] and triangular magnetic lattices
+[6], in which spin splitting is k/−kantisymmetric and
+time-reversal even (TRE) [ 7]. In analogy with the celebrated
+Rashba-Dresselhaus (R-D) effect [ 8,9], the latter require
+inversion-symmetry breaking, but unlike R-D systems, do notrequire SOC. In a previous paper [ 3], one of us (P.G.R.) pre-
+sented a symmetry classiﬁcation of k/−k-symmetric, TRO
+splitting of electronic bands in magnetic materials based on ageneral tensorial approach and with a focus on (collinear) al-termagnets. It was also shown that, for collinear compensated
+*Contact author: p.g.radaelli@physics.ox.ac.uk
+†Contact author: gautam.gurung@trinity.ox.ac.uk
+Published by the American Physical Society under the terms of the
+Creative Commons Attribution 4.0 International license. Further
+distribution of this work must maintain attribution to the author(s)and the published article’s title, journal citation, and DOI.magnets where the splitting is allowed (i.e., those whose
+symmetries do not contain the time-reversal operator or theproduct of inversion and time-reversal operators), one candecompose the spin texture into two components: a SOC-independent “altermagnetic” texture, having a general formthat can be obtained via the spin group (SG) analysis (or ananalog based on black-and-white Shubnikov groups), and a“residual” component, which is allowed by the exact magneticpoint group (MPG) symmetry for a particular direction of theNéel vector and will only exist in the presence of SOC.
+The existence of nonrelativistic spin textures in non-
+collinear antiferromagnets was discussed before altermag-
+netism emerged as a distinct concept [ 10], while spin-
+dependent density functional theory (DFT) calculations onnoncollinear magnets have been performed as far back as1989 [ 11]. Collinear and noncollinear magnets can possess the
+same MPG symmetries (though cubic MPG can only describenoncollinear magnets), and there is general consensus that theSG analysis, with some modiﬁcations, can be extended to non-collinear systems. Nevertheless, no systematic methods havebeen proposed to date to extract SOC-independent texturesin noncollinear systems. Here, we ﬁll this gap by employinga systematic approach based on so-called color symmetrygroups (CGs) to describe k/−k-symmetric , time-reversal
+odd altermagneticlike textures in collinear and noncollinearmagnets [ 12]. In Ref. [ 3], it was shown that Shubnikov groups
+offer an alternative formulation of the SG analysis and of-fer some advantages; for instance, they preserve the naturalconcept of time-reversal symmetry. The CGs we employ hereare a natural extension of black-and-white Shubnikov groupsto cases in which there are more than two spin directions.Although CGs and SGs are largely equivalent and can both beemployed to describe noncollinear SOC-independent textures,CGs are more intuitive and do not require the rather cumber-some choice of the SG axis orientation. We will demonstratethe application of this CG analysis to three noncollinear
+2469-9950/2025/112(1)/014431(12) 014431-1 Published by the American Physical Society
+
+PAOLO G. RADAELLI AND GAUTAM GURUNG PHYSICAL REVIEW B 112, 014431 (2025)
+chiral magnets: Mn 3Ir(Ge,Si), Pb 2MnO 4, and Mn 3GaN. The
+magnetic structures of Mn 3Ir(Ge,Si) and Pb 2MnO 4are de-
+scribed by complex four-color symmetries, but do not breakany crystal symmetries, which means that the CG and MPGanalyses are expected to (and do) yield the same textures.Finally, for the well-known noncollinear magnetic antiper-ovskite Mn
+3GaN, we present the CG analysis, including a
+full tensorial decomposition, alongside spin-resolved DFTcalculations with and without SOC. In complete analogy withthe case of collinear altermagnets, we show that, in the ab-sence of SOC, the spin texture is exactly as predicted by theCG analysis, while in the presence of SOC, an additionalcomponent emerges, which has the more general MPG sym-metry and varies depending on the direction of the magneticmoments.
+II. ALTERMAGNETISM AND SPIN-SPACE
+ROTATION INVARIANCE
+The intuitive statement that the SOC-independent com-
+ponent of the spin texture (the altermagnetic componentin collinear systems) is invariant by rotation in spin spacerequires some qualiﬁcation. In k/−k-symmetric TRO alter-
+magnets, the spin texture can be thought of as generated byan effective Zeeman ﬁeld B
+ef f(k,n), which depends on the
+wave vector kand on the band index n[3]. More rigorously,
+within the context of DFT, for a given wave vector kand
+band index nthe spin texture is deﬁned by the vector ﬁeld
+snk=/angbracketleft/Psi1nk|σ|/Psi1nk/angbracketright, where σis a vector of Pauli matrices and
+the integral implied by the /angbracketleft|and|/angbracketrightis over the real-space unit
+cell. Although the two ﬁelds, though different in magnitude,are equivalent from the symmetry point of view, in this paperwe will employ s
+nkto make a direct connection with our DFT
+results (see below). Within the tensorial framework, to a givenorder the spin textures can be expressed as
+s
+nk=T(l)
+i,αβγ...kαkβkγ..., (1)
+where T(l)
+i,αβγ...is a tensor of odd rank that is symmetric in the
+Greek indices.
+Ifsnkis generated by a collection of real-space magnetic
+moments Sjwithin the crystal structure, “rotational invariance
+in spin space” means that, upon a global spin-space rotation oftheS
+j’s, the amplitude |snk|is invariant, while the vector ﬁeld
+direction corotates with the Sj’s. Mathematically, this can be
+expressed as
+snk(Sj)=R−1snk(RSj), (2)
+where Ris any rotation matrix. For collinear magnetic struc-
+tures, one can verify that the SG construction produces ans
+nkwith the invariance properties of Eq. ( 2). Again, this is
+most easily seen using the equivalent Shubnikov approach:the SG-equivalent Shubnikov group is the symmetry group ofthe black-and-white antiferromagnetic ordering pattern, and istherefore independent on the direction of the Néel vector. Asdiscussed in Ref. [ 3], one proceeds to construct a scalar ﬁeld
+s
+nkfrom a tensor that is fully symmetrized by the Shubnikov
+SG, and then equates snk=ˆLsnk, where ˆLis a unit vector
+in the direction of the Néel vector L. Since in a collinear
+structure Land the Sjare both parallel /antiparallel to eachother, Eq. ( 2) is obeyed by construction. Our aim is to ﬁnd
+an analogous treatment for k/−k-symmetric, TRO textures
+innoncollinear magnets, so that snkis similarly invariant
+by construction. Note that this approach is not immediatelysuitable for k/−k-antisymmetric magnets, since in this case
+the spin texture cannot be described as a linear combination ofTRO vectors with scalar quantities, which clearly produces aTRO, parity-even tensor. Moreover, in k/−k-antisymmetric
+magnets, band splitting and spin polarization are correlated,so that, for a given k, the net spin polarization averaged over
+bands that would be degenerate in the absence of magneticordering is zero [ 13].
+III. COLOR SYMMETRY GROUPS AND THE
+DESCRIPTION OF NONCOLLINEAR STRUCTURES
+Color symmetry groups are groups of combined geomet-
+rical and color-permutational symmetry operations, whichleave certain colored objects unchanged [ 14]. In the context
+of crystallography, one can distinguish between color point
+groups (CPGs), where all geometrical transformations areproper and improper rotations around a ﬁxed point, and colorspace groups (CSGs), in which rotations and translations are
+combined to yield the symmetries of periodic colored objects.Within the CG framework, Shubnikov groups correspond tobicolor CGs. Tricolor CSGs were ﬁrst classiﬁed by Harker
+in 1981 [ 14], while other authors later extended the theory
+to four and six colors [ 15–17]. A full classiﬁcation of all
+possible CSGs was presented by Kozev in 1988 [ 18]. Applica-
+tions of CGs to physical problems were discussed as early as1982 [ 19] and were later extended to include the description
+of orbital ordering [ 20]. Although extending the Shubnikov
+group analysis of magnetic structures to multicolored groupsappears quite natural, by the early 1980s the representationanalysis ﬁrst introduced by Bertaut [ 21] was already very
+popular, and the alternative CSG approach was not widelypursued.
+Here, we will adopt the nomenclature ﬁrst proposed by
+Harker to construct multicolor groups [ 14], in which each
+CSG/CPG is denoted by an ordinary space or point group,
+sayG, followed by two of its subgroups, HandH
+/prime.H/primeis a
+subgroup of index n, where nis also the number of colors, and
+contains all the operations in Gthat leave one color invariant,
+so that, for example, “red” fragments are transformed in otherred fragments. Other colors are left invariant by conjugatedcopies of H
+/prime, which are not necessarily unique to a single
+color. By contrast, Hcontains all the operations in Gthat
+leave allcolors invariants. Strictly speaking, adding Hto the
+notation is redundant, because His the intersection of H/primewith
+all its conjugated subsets and can be readily obtained from H/prime
+andG. Note also that the color permutation group is isomor-
+phic to the quotient group G/H. Within this framework, the
+color symmetry of a particular structure would consist of anordinary point or space group operation, which only affectsthe position of the atoms (or fragments), composed with ( ◦)
+a color-permutation operation, which only affects the colors.So, for example, if a certain geometrical operation gconverts
+red (R) fragments to red fragments and exchanges blue (B)and green (G) fragments, the corresponding CG operation isg◦{R→R,B→G,G→B}.
+014431-2
+
+COLOR SYMMETRY AND ALTERMAGNETICLIKE SPIN … PHYSICAL REVIEW B 112, 014431 (2025)
+When using CGs to describe magnetic structures, each
+direction of the magnetic moments would be represented bya distinct color. It seems useful to consider time reversal as aspecial operation (denoted as 1
+/prime), so that structural fragments
+containing spins related by time reversal are represented by“anticolors” (e.g., red and antired spins would be oppositeand related by time reversal). Using the notation above, 1
+/prime≡
+{R→¯R,B→¯B,G→¯G}, where the bar indicates the anti-
+color. An advantage of this approach is that, at any tensor rank,it is possible to represent a color /anticolor pair with the same
+colored tensor, as explained further in Sec. IV. Moreover,
+the notion of time reversal is preserved, as in the case ofShubnikov groups.
+The exact symmetry group of the crystal +magnetic struc-
+ture (MPG or magnetic space group, MSG) consists of allCPG/CSG operations for which the color permutation corre-
+sponds to a geometrical axial vector transformation combinedeither with the identity or with time reversal. Hence, theMPG/MSG of a given magnetic structure is a subgroup of its
+CPG/CSG. By construction, magnetic structures related by a
+global rotation in spin space are described by the same CG, theonly difference being the identiﬁcation of colors with spins.
+Ever since the work of Bertaut [ 21], irreducible represen-
+tations of space groups have been the primary tool to describemagnetic structures. Later, Izyumov introduced exchangemultiplets, which are sets of irreducible representations thatare linked together if the magnetic Hamiltonian is invariantby rotations in spin space. There is a natural link between CGsand the theory of exchange multiplets [ 22], which is discussed
+in the Appendix.
+A. Color group notation
+Following Harker [ 14], the CG notation used in the re-
+mainder of this paper is {G|H/prime|H}. Although this notation is
+rather verbose and may be conveniently simpliﬁed if the useof color groups were to become widespread, it has the meritof being complete and accurate and of using only familiarcrystallographic symbols.
+For example, in the case of Mn
+3GaN (see below), the
+parent crystallographic group is G=4¯3m, the subgroup H/prime
+that leaves one color invariant is 4 /mmm , and the intersection
+of the three conjugated H/primegroups is the group H=mmm .
+Hence, the notation for the corresponding 3-color group is{4¯3m|4/mmm|mmm}. If the parent group Gis centrosymmet-
+ric, one can simplify calculations signiﬁcantly by droppingall improper operators. In this case, the corresponding colorgroup is {432|422|222}.
+The notation for the other two systems discussed in this
+paper [Mn
+3Ir(Ge,Si) and Pb 2MnO 4] is obtained in the same
+way. In the simpliﬁed 4-color description of Mn 3Ir(Ge,Si),
+each color is left invariant by a 3-fold axis, so the H/primegroup is
+3, leading to the notation {23|3|1}(only the identity operator
+leaves all colors invariant). In the 12-color scheme, no coloris left invariant by operators other than the identity, so thecolor group notation is {23|1|1}. In the case of Pb
+2MnO 4,
+the parent group is ¯42m, while the H/primesubgroup is m, with
+no intersection between the H/primegroups for different colors
+other than the identity. Therefore, the color group notation is{¯42m|m|1}.B. Color groups and spin groups
+Since each crystallographic point group (XPG) is isomor-
+phic to a permutation group, it is not surprising that a closerelation exists between the CG and SG analyses of bothcollinear and noncollinear magnetic structures. This relationbecomes transparent if one assigns a distinct color to each armof the star generated by the part of the SG that acts exclusivelyon spins, since the action of the SG on spins becomes equiv-alent to a color permutation. The derivation of all SGs [ 23]i s
+largely identical to that of CPGs; for example, in Ref. [ 23],
+the groups GandHare called Randr. However, in the SG
+derivation, there is an extra step to associate with the quotientgroup R/rone of the 32 XPGs (called Bin Ref. [ 23]). It should
+also be noted that CG symbols encode extra information withrespect to SGs. This includes not only the number of colors(i.e., of distinct spin directions), but also the speciﬁc represen-tation of the symmetry groups that deﬁnes the transformationof all magnetic structures with the same CG symmetry (thisis explained in more detail in the Appendix). In the case ofSGs, the same information is encoded in the orientation ofthe magnetic moments with respect to the symmetry operatorsof the group B. This will be further clariﬁed in the examples
+given below.
+The general group-theoretical statement connecting MPGs,
+SGs, and CGs is that, for a given magnetic structure, theMPG that describes it is a subgroup of the SG, which isitself a subgroup of the CG, though these are not necessarilyproper subgroups (in other words, pairs of these groups may
+be isomorphic). In many cases of interest (including all thosediscussed in this paper), SGs and the corresponding CGs are
+also isomorphic, so whether one uses CG or SG is largely a
+matter of preference. However, this is not always the case.Typically, CG and SG are nonisomorphic when spins con-nected by color (permutation) operations do not have the samemagnitude, generally as a consequence of a magnetic phasetransition that splits equivalent sites into inequivalent “orbits.”An example of this is discussed in the Supplemental Material(SM) [ 37], Sec. I. When the CG is a proper supergroup of the
+SG, the CG analysis is more general and may unveil “hidden”symmetries that are invisible to the SG analysis.
+We also ﬁnd the CG approach to be somewhat more in-
+tuitive: In the case of SG and for a generic orientation ofthe magnetic moments (e.g., in the presence of an appliedmagnetic ﬁeld), the point group elements acting on spins aregenerally not coaligned with those acting on atoms, and theiroperators do not coincide with any of the symmetry operatorsthat are present in the paramagnetic structure. By contrast,spin (or color) permutation has the same meaning regardlessof the overall spin orientation. An example of parallel SG andCPG analyses will be given in Sec. VII B .
+IV . CONSTRUCTING COLORED
+ALTERMAGNETIC TENSORS
+The procedure to construct altermagnetic tensors in the
+framework of CG theory is rather straightforward, and fol-lows closely the case of collinear structures (bicolor groups).Using the projection method, one constructs sets of colored
+tensors that are totally symmetric by the CPG of the magnetic
+014431-3
+
+PAOLO G. RADAELLI AND GAUTAM GURUNG PHYSICAL REVIEW B 112, 014431 (2025)
+structure. This is done beginning with the most generic form
+of a symmetric tensor of a given rank, and assigning to it asingle color (say, red). The “red” tensor is then constructedby adding up all copies of the original tensor transformed inthe usual way via symmetry operations in H
+/prime, where H/primetrans-
+forms red fragments into other red fragments, and normalizingby the order of G. Likewise, the “blue” tensor is obtained by
+adding up all copies of the original tensor transformed viag◦H
+/prime, where gtransforms red fragments into blue fragments,
+etc. The full altermagnetic tensor is then obtained as a linearcombination of the colored tensors times the axial unit vector
+corresponding to the color assigned to the magnetic momentin the real-space structure. Once again, by construction, ef-fective magnetic ﬁelds (i.e., spin textures) calculated usingthis method are invariant by Eq. ( 2), since magnetic moments
+in real space and axial unit vectors in reciprocal space areparallel and hence corotating. Moreover, since the MPG ofthe magnetic structure is a subgroup of the CPG, it follows
+that the altermagnetic tensor thus constructed is always aspecial case of the general MPG tensor, which can then be de-
+composed into “altermagneticlike” and residual components,precisely as in the collinear case.
+The procedure to obtain colored tensors is slightly modi-
+ﬁed in the presence of geometrical operators composed withthe time-reversal operator 1
+/prime, which gives rise to anticolors.
+One can obtain separate tensors for a given color (say, red)and its anticolor (antired). However, when the full tensor isreconstructed, the red and antired tensors will be multipliedby antiparallel vectors, which is equivalent to multiplying the“red” vector by the difference of the two tensors. Using this
+method, one effectively halves the number of required tensors.This mirrors the procedure outlined in Ref. [ 3] for collinear
+structures, where only one TRO tensor was required ratherthan separate “black” and “white” tensors. This situation isdiscussed further in Sec. VI.
+V. M n 3Ir(Ge,Si)
+Mn 3Ir(Ge,Si) crystallizes in the crystallographic space
+group P213. Below the Néel temperature ( TN=225 K for Ge
+and 210 K for Si), magnetic moments on the 12 magnetic sitesorder forming a complex noncollinear structure with the MSGalso being P2
+13 (MPG 23) [ 24,25]. Spin textures and bulk
+properties in Mn 3IrSi were recently analyzed theoretically and
+discussed in the context of Landau theory [ 26].
+In the magnetic structure reﬁned from experimental data
+and also conﬁrmed by theoretical calculations [ 24,25], all
+the magnetic moments on the 12 sites are noncollinear, soanalyzing the magnetic structure with CG-SG would require12 colors or 12 distinct spin-space rotations. However, groupsof three moments are roughly parallel to each other and toone of the cube diagonals, the angle with the closest diagonalbeing ∼11
+◦. The experimental magnetic structure (a) and the
+approximate structure (b) are displayed in Fig. 1.W eb e g i nb y
+performing an analysis of the spin textures for the approx-imate structure, which requires four colors. Later, we willexplain that the 12-color analysis yields an identical result.Since the magnetic and crystallographic space groups are thesame, the magnetic structure does not break any crystallo-graphic symmetry. We therefore expect the textures arising
+FIG. 1. Experimentally determined [ 24] (a) and approximate
+(b) magnetic structures of Mn 3Ir(Ge,Si). Only magnetic Mn atoms
+are shown. Labels indicate distinct colors (see text for the assignment
+of magnetic moment directions to colors).
+from the 4- and 12-color analyses to be fully consistent with
+the MPG textures, which are reported in Table I of Ref. [ 3]
+(MPG 23, Class XVII).
+A. Mn 3Ir(Ge,Si): Four-color analysis
+We choose the four colors to correspond to the following
+spin directions [see Fig. 1(b)]:
+Yellow (Y) : →(1,1,−1),
+Blue (B) : →(1,−1,1),
+Green (G) : →(−1,1,1),
+Red (R) : →(−1,−1,−1). (3)
+The XPG (23) comprises 12 symmetry operations: eight
+3-fold ( ±120◦) rotations, around [1,1,1] and equivalent di-
+rections, three 2-fold rotations around [1,0,0] and equivalentdirections, and the identity. The MPG operations that leaveY invariant are the identity and the ±120
+◦rotations around
+[1,1,−1], corresponding to point group 3. Likewise B, G,
+and R are left invariant by a conjugated point group, alsowith symbol 3 but with a different rotation axis. There arefour such conjugated subgroups in the MPG 23, and the onlycommon operation to all is the identity. Hence, the full CPGsymbol is {23|3|1}. In this CPG, 3-fold rotations leave one
+color invariant and permute the other three, while 2-fold rota-tions exchange pairs of colors; for example, the 2-fold rotationaround [1,0,0] exchanges Y with B and G with R.
+The next step is to construct four “colored scalar” tensors
+of the selected rank using the projection method. This is donestarting from the most generic form of the symmetric scalartensor, to which we assign the color Y . We then apply thespace transformation operations of the XPG and exchange thecolors as explained in Sec. IV. We perform this operation for
+the lowest rank (rank 2), but the procedure is identical for anyrank. The most generic rank-2 symmetric tensor is
+T
+g=⎛
+⎝ade
+dbf
+efc⎞
+⎠, (4)
+where the scalar quadratic form is obtained by multiplying
+this matrix to the left and right by [ kx,ky,kz]. The four colored
+014431-4
+
+COLOR SYMMETRY AND ALTERMAGNETICLIKE SPIN … PHYSICAL REVIEW B 112, 014431 (2025)
+FIG. 2. Spin texture of Mn 3Ir(Ge,Si), generated from the tensor
+in Eq. ( 7). The color of the arrows indicates the radial projection of
+the texture (red =out; blue =in). Wave vectors are in arbitrary units.
+tensors obtained by the projection methods are
+TY=1
+12⎛
+⎝AB −B
+BA −B
+−B−BA⎞
+⎠,
+TB=1
+12⎛
+⎝A−BB
+−BA −B
+B−BA⎞
+⎠,
+TG=1
+12⎛
+⎝A−B−B
+−BA B
+−BB A⎞
+⎠,
+TR=1
+12⎛
+⎝ABB
+BABBBA⎞
+⎠, (5)
+with A=a+b+c,B=1/2(d−e−f). With this construc-
+tion, the set {T
+Y,TB,TG,TR}is totally symmetric by the CPG;
+in other words, it is invariant by all geometrical transforma-tions composed with the color permutation operations.
+To obtain the spin texture at the lowest rank, we reassign
+colors to spin texture directions [Eq. ( 16)] and add up all the
+colored tensors, obtaining the full rank-3 CPG tensor
+T
+CPG=(1,1,−1)TY+(1,−1,1)TB+(−1,1,1)TG
++(−1,−1,−1)TR. (6)
+It is apparent that the texture obtained from Eq. ( 6)i s
+completely invariant by rotation in spin space in the sense ofEq. ( 2). The expression of T
+CPGas a 3 ×6m a t r i xi s
+TCPG=⎛
+⎝000 /Lambda114 00
+000 0 /Lambda114 0
+000 0 0 /Lambda114⎞
+⎠, (7)
+with/Lambda114=1/3(−d+e+f)( s e eF i g . 2for a depiction of
+the spin texture), and is formally identical to the one obtainedfrom the MPG analysis, which is reported in Table I of Ref. [ 3](MPG 23, Class XVII), exactly as we expected.
+B. Mn 3Ir(Ge,Si): 12-color analysis
+We can repeat the same analysis using the experimental
+magnetic structure of Mn 3Ir(Ge,Si), which requires twelve
+colors, none of which is left invariant by operations other thanthe identity; hence the 12-color CPG is {23|1|1}. Here, each
+of the four colors in the simpliﬁed magnetic structure is splitinto three, so that, for example,
+Yellow 1 (Y1) : →(v
+x,vy,vz),
+Yellow 2 (Y2) : →(vy,−vz,−vx), (8)
+Yellow 3 (Y3) : →(−vz,vx,−vy),
+etc., where, in the experimental structure, vx=0.7106,vy=
+1.2118,vz=−1.015. The analysis proceeds in the same way
+as for the 4-color structure, yielding the same result [Eq. ( 7)],
+this time with /Lambda114=1/3(vxf+vye+vzd). Note the two re-
+sults coincide for v=(1,1,−1).
+In conclusion, for Mn 3Ir(Ge,Si), both the 4- and the 12-
+color analyses produce tensorial spin textures that are fullyconsistent with the MPG analysis (Ref. [ 3]), as we expected
+since the magnetic structure does not break any of the crys-tallographic symmetry operators. We generally expect this tobe the case at every tensor order, whenever the “gray” (para-magnetic) group corresponding to the MPG is identical to theXPG. The CPG tensorial spin texture is formally invariant bya global rotation of the magnetic structure in spin space, andthis remains true for spin orientations that break one or moreof the MPG 23 symmetries. If such low-symmetry magneticstructure could be stabilized, we would expect the altermag-
+neticlike component of the spin texture (given by the CPG
+analysis) to remain the same, while an additional componentwould be activated in the presence of SOC, with tensor formsconsistent with the new, lower-symmetry MPG. However, toour knowledge, no such structure has been observed experi-mentally.
+VI. DEALING WITH ANTICOLORS:
+THE CASE OF Pb 2MnO 4
+Pb2MnO 4received some attention due to its potential
+multiferroic properties [ 27,28], and was recently discussed
+in Ref. [ 29] as having properties that are consistent with
+momentum-space spin splitting. It crystallizes with a tetrag-onal structure (space group: P¯42
+1c) and orders noncollinearly
+at the /Gamma1point below ∼18 K, with the magnetic moments on
+the eight Mn sites aligned along the diagonals of the squarefaces (Fig. 3). The MSG and MPG are P¯4
+/prime21c/primeand¯4/prime2m/prime,r e -
+spectively. As in the case of Mn 3Ir(Ge,Si), magnetic ordering
+does not break any crystal symmetry operator, so we expectthe CPG and MPG analyses (the latter reported in Table I ofRef. [ 3] as Class X) to yield identical results. However, the
+tensor associated with Class X has two parameters ( /Lambda1
+14and
+/Lambda136), so the speciﬁc values of these parameters in the CPG
+analysis will depend on the relative orientations of the spinsin real space, while remaining invariant by global rotations inspin space.
+014431-5
+
+PAOLO G. RADAELLI AND GAUTAM GURUNG PHYSICAL REVIEW B 112, 014431 (2025)
+FIG. 3. Magnetic structure of Pb 2MnO 4, based on Ref. [ 27]. The
+magnetic Mn atoms have associated arrows, while the gray spheres
+are Pb (oxygen atoms have been omitted). Colors and anticolors areindicated with plain and dotted ﬁelds, respectively.
+The colors /anticolors have been associated with magnetic
+moment directions, as follows:
+Red (R) : →(1,1,0),
+Blue (B) : →(1,−1,0),
+anti-Red ( ¯R) :→(−1,−1,0),
+anti-Blue ( ¯B) :→(−1,1,0). (9)
+There are eight symmetry operators in the XPG: the iden-
+tity ( E), two ¯4 operations, a 2-fold rotation around z,t w o
+2-fold axes along xandy, and two mirror planes perpendicular
+toxyand ¯xy. The corresponding color permutation operations
+are the following:
+E:R→R;B→B;¯R→¯R;¯B→¯B,
+¯4+:R→B;B→¯R;¯R→¯B;¯B→R,
+¯4−:R→¯B;B→R;¯R→B;¯B→¯R,
+2z:R→¯R;B→¯B;¯R→R;¯B→B,
+2x:R→¯B;B→¯R;¯R→B;¯B→R,
+2y:R→B;B→R;¯R→¯B;¯B→¯R,
+mxy:R→¯R;B→B;¯R→R;¯B→¯B,
+m¯xy:R→R;B→¯B;¯R→¯R;¯B→B. (10)
+Consequently, the H/primesubgroup (for red and antired) is m=
+{E,m¯xy}, while the group Honly contains the identity. The
+CPG symbol is {¯42m|m|1}. The subgroup mhas index 4 in
+¯42m,s o{¯42m|m|1}is a four-color group.
+The four colored tensors obtained by the projection meth-
+ods are
+TR=1
+8⎛
+⎝ADB
+DAB
+BBC⎞
+⎠,
+T¯R=1
+8⎛
+⎝AD −B
+DA −B
+−B−BC⎞
+⎠,TB=1
+8⎛
+⎝A−DB
+−DA −B
+B−BC⎞
+⎠,
+T¯B=1
+8⎛
+⎝A−D−B
+−DA B
+−BB C⎞
+⎠, (11)
+with A=a+b,B=(ee+f)/2,C=2c, and D=d. We can
+combine each color with its anticolor as
+TR−¯R=1
+4⎛
+⎝00 B
+00 B
+BB 0⎞
+⎠,
+TB−¯B=1
+4⎛
+⎝00 B
+00 −B
+B−B 0⎞
+⎠. (12)
+Finally, we can reconstruct the full tensor using the color
+assignments in Eq. ( 9):
+TCPG=⎛
+⎝000 /Lambda114 00
+000 0 /Lambda114 0
+0 0 00 00⎞
+⎠, (13)
+where /Lambda114=B. This is to be compared with the MPG tensor
+for Class X:
+TMPG=⎛
+⎝000 /Lambda114 00
+000 0 /Lambda114 0
+000 0 0 /Lambda136⎞
+⎠, (14)
+soTCPGis a particular case of TMPG, while /Lambda136=0 clearly
+arises from the fact that all magnetic moments are in the xy
+plane. One can easily verify that TCPGis invariant by rotation
+in spin space in the sense of Eq. ( 2). It can also be shown
+that more general four-color models based on the same CPGproduce an altermagneticlike tensor that is identical to T
+MPG.
+VII. BREAKING CRYSTAL SYMMETRY WITH
+MAGNETIC MOMENTS: THE CASE OF Mn 3GaN
+The cases of Mn 3Ir(Ge,Si) and Pb 2MnO 4were complex
+and instructive, but mainly served as validations of the colorsymmetry approach, since there was an expectation that theresults should coincide with the MPG analysis. Cases in whichthe crystal symmetry is explicitly broken by the magneticstructure are signiﬁcantly more interesting, particularly whenthe phase diagram contains phases with different magneticsymmetries. The antiperovskite family, of which Mn
+3GaN is
+a well-known representative [ 30,31], is an ideal case in point.
+In the bulk, Mn 3GaN orders with a noncollinear AFM struc-
+ture and TN∼290 K, but in thin ﬁlms the Néel temperature
+can be as high as TN∼350 K, making this material suitable
+for applications in spintronics. Since the magnetic Mn sitesform kagome lattices with Ga at the empty sites, the mag-netic ordering is in a typical 120
+◦pattern, with the magnetic
+and crystallographic unit cells coinciding ( /Gamma1-point ordering).
+The crystallographic space group is Pm¯3m(No. 221). Two
+magnetic structures have been proposed for Mn 3GaN, cor-
+responding to the /Gamma15gand/Gamma14girreps of Pm¯3m, and having
+MSGs R¯3mand R¯3m/prime, respectively (see Fig. 4). Note that
+in both cases the cubic crystal symmetry is broken by the
+014431-6
+
+COLOR SYMMETRY AND ALTERMAGNETICLIKE SPIN … PHYSICAL REVIEW B 112, 014431 (2025)
+FIG. 4. Magnetic structures of the /Gamma15g(a) and /Gamma14g(b) phases
+of Mn 3GaN [ 30]. Magnetic Mn ions are shown with arrows, small
+spheres are N, and large spheres are Ga. (111) planes containing the
+Mn kagome lattice are shadowed.
+magnetic structure. Mn 3GaN itself appears to be ordering
+with/Gamma15gin both bulk [ 30] and thin ﬁlm [ 32] forms, but
+DFT calculations [ 33] have shown that /Gamma14gcan be stable for
+other members of the antiperovskite family [ 34], sometimes
+associated with a /Gamma15g//Gamma14gphase transition. As drawn in Fig. 4,
+the magnetic moments in the two structures are related by a90
+◦collective rotation of the magnetic moments in spin space.
+However, the MPG ¯3m/primeof the /Gamma14gisadmissible ; i.e., it allows
+the development of SOC-induced weak ferromagnetism viacollective tilting of the moments toward the [1,1,1] direction.
+A. Mn 3GaN: CPG analysis
+The XPG m¯3mcomprises 48 symmetry operations, but im-
+proper operations have the same effect on magnetic momentsas the corresponding proper rotations, so it will be sufﬁcientto consider the 24 operations of point group 432: eight 3-fold(±120
+◦) rotations, around [1,1,1] and equivalent directions,
+three 2-fold rotations and six 4-fold rotations around [1,0,0]and equivalent, six 2-fold rotations around [1,1,0] equivalent,and the identity. The color assignment (shown in Fig. 4)i st h e
+same for the /Gamma1
+5gand/Gamma14gstructures, except for a collective
+rotation in spin space. For /Gamma15g,
+R5g:→1√
+2(0,1,−1),
+B5g:→1√
+2(1,−1,0), (15)
+G5g:→1√
+2(−1,0,1),
+while for /Gamma14g,
+R4g:→1√
+6(−2,1,1),
+B4g:→1√
+6(1,1,−2),
+G4g:→1√
+6(1,−2,1). (16)
+By inspection, the 3-fold rotations permute the three col-
+ors, the [1,0,0]-2-fold rotations leave all colors invariant,while the [1,0,0]-4-fold rotations and [1,1,0]-2-fold rotationsleave one color invariant and permute the other two. Hence,the color group symbol is {432|422|222}. The point group
+422 is a subgroup of index three, so {432|422|222}is indeed
+a three-color group.
+Next, we construct the colored tensors with the projection
+method, starting from a generic rank-2 tensor [Eq. ( 4)] and,this time, assigning the color red (R) to it:
+T
+R=1
+6⎛
+⎝2a 00
+0 b+c 0
+00 b+c⎞
+⎠,
+TB=1
+6⎛
+⎝b+c 00
+0 b+c 0
+00 2 a⎞
+⎠,
+TG=1
+6⎛
+⎝b+c 00
+02 a 0
+00 b+c⎞
+⎠.
+Reassembling the full CPG tensor we obtain, for /Gamma15g,
+T5g
+CPG=/Lambda1⎛
+⎝01 −1000
+−10 10 0 0
+1−100 0 0⎞
+⎠ (17)
+with/Lambda1=−(1/6√
+2)(2a−b−c), while for /Gamma14g,
+T4g
+CPG=/Lambda1⎛
+⎝2−1−1000
+−12 −1000
+−1−120 0 0⎞
+⎠ (18)
+with/Lambda1=−(1/6√
+6)(2a−b−c).
+The two tensors are orthogonal, meaning that the spin
+textures will be orthogonal at any wave vector.
+As already explained, the MPGs for the /Gamma15gand/Gamma14g(¯3m
+and¯3m/prime, Class VIII and Class VII, respectively in Table I of
+Ref. [ 3]) belong to the trigonal system. Therefore, in order to
+compare them to the CPG tensors, we need to rotate them tothe cubic coordinates. The simple transformations yield
+T¯3m=/Lambda11⎛
+⎝01 −1000
+−10 10 0 0
+1−100 0 0⎞
+⎠
++/Lambda12⎛
+⎝000 0 1 −1
+000 −10 1
+000 1 −10⎞
+⎠, (19)
+T¯3m/prime=/Lambda11⎛
+⎝2−1−1000
+−12 −1000
+−1−120 0 0⎞
+⎠
++/Lambda12⎛
+⎝000 2 −1−1
+000 −12 −1
+000 −1−12⎞
+⎠
++/Lambda13⎛
+⎝111000
+111000111000⎞
+⎠. (20)
+One can easily see that T5g
+CPG[Eq. ( 17)] is equal to the
+ﬁrst term of T¯3m[Eq. ( 19)] with /Lambda1→/Lambda11. Likewise, T4g
+CPG
+[Eq. ( 18)] is equal to the ﬁrst term of T¯3m/prime[Eq. ( 20)] with
+/Lambda1→/Lambda11. In other words, tensors obtained from the CPG
+analysis are special cases of the general tensors allowed bythe MPG, obtained, in this case, by setting /Lambda1
+2=/Lambda13=0.
+This is exactly what we expected and is completely consistentwith the result we previously obtained for collinear structures(Ref. [ 3]).
+014431-7
+
+PAOLO G. RADAELLI AND GAUTAM GURUNG PHYSICAL REVIEW B 112, 014431 (2025)
+FIG. 5. Altermagneticlike spin textures for the /Gamma15g(a),/Gamma14g(b), and phases of Mn 3GaN, generated from the tensors T5g
+CPGandT4g
+CPG[Eqs. ( 17)
+and ( 18)]. The color of the arrows indicates the radial projection of the texture (red =out; yellow /gray=parallel; blue =in). Wave vectors are
+in arbitrary units. The insets are the equatorial cross sections of the textures down the (1,1,1) direction, shown with an outline of the Brillouin
+zone (compare with Fig. 6). The /Gamma15gand/Gamma14gtextures are related by a collective 90◦rotation in spin space around the (1,1,1) direction.
+B. Mn 3GaN and Mn 3Ir(Ge,Si): SG analysis
+Here, we give examples of analyses performed on
+Mn 3GaN and Mn 3Ir(Ge,Si) with the SG approach and using
+the terminology and numbering of Ref. [ 23]. As already men-
+tioned, the SGs corresponding to a given CPG are obtainedfrom the XPG G(R) and one of its normal subgroups H(r),
+where the letter in parentheses corresponds to the notation ofRef. [ 23].
+In the case of Mn
+3GaN, G=432 and H=222. The spin
+group is constructed by selecting spin-transformation PGs(denoted as B) that are isomorphic to G/H(orR/rin the
+notation of Ref. [ 23]). There are two possible PGs for B:3 2
+(SG No. 563) and 3 m(SG No. 564), which are, indeed, both
+isomorphic to the three-color permutation group. In Ref. [ 23],
+it is explained that the two coordinate systems for GandB
+are arbitrarily mutually orientated, though a complex notationis introduced when the coordinate systems of BandGdo not
+coincide. However, importantly, one needs to orient the axesofBso that they act correctly on the spin system in real space.
+In our case, the 3-fold axis must be perpendicular to the threespins, each 2-fold axis in 32 must be parallel to one of thespins, and each mirror plane in 3 mmust be perpendicular to
+one of the spins. When this is done, the analysis is identicalto the one using CPGs, since Bacts by permuting the spins
+in the same way as colors were permuted by the CPG. Note,however, that the Bneeds to be rotated by 90
+◦between /Gamma15gand
+/Gamma14gand more generally reoriented to ﬁt an arbitrary rotation
+in spin space. Leaving aside the 32 /3mambiguity, this seems
+an unnecessary complication that is completely avoided bythe CPG analysis. Within the tensorial framework, the CPGanalysis also captures the fundamentally scalar nature of al-
+termagneticlike tensors.Similarly, a parallel SG analysis can be performed
+on Mn
+3Ir(Ge,Si), where G=23 and H=1 (SG 538 in
+Ref. [ 23]). Here, the SG is the same for the approximate
+and experimental magnetic structures (see Secs. VandVB),
+while the CPGs are different— {23|3|1}vs{23|1|1}—because,
+as already explained, the CPG symbol encodes additionalinformation about the number of colors (i.e., distinct spindirections) and the speciﬁc representation that encodes thecolor permutation.
+C. Mn 3GaN: DFT calculations and tensor decompositions
+To validate our analysis further, we calculated the spin
+textures for the /Gamma15gand/Gamma14gphases of Mn 3GaN using spin-
+resolved DFT. DFT calculations were performed using theQuantum-ESPRESSO code [ 35]. The exchange and corre-
+lation effects were treated within the generalized gradientapproximation (GGA) [ 36]. The k-point mesh of 16 ×16×
+16 and plane-wave cutoff energy of 52 Ry were used for theintegration in the irreducible Brillouin zone. The noncollinearmagnetic structure was always considered with and withoutspin-orbit coupling. The spin texture on the Fermi surface wascalculated using 50 ×50×50 k points within the ﬁrst Bril-
+louin zone (BZ). To depict the results in an intuitive manner,the spin texture was projected on a plane containing the /Gamma1
+point and normal to the (1,1,1) direction.
+Figure 6displays equatorial sections [i.e., on a plane cut
+perpendicularly to the (1, 1, 1) direction] of the spin-resolvedFermi surface, calculated for /Gamma1
+5gand/Gamma14gwith and with-
+out SOC. For /Gamma14g, the color wheel indicating in-plane spin
+directions was rotated by 90◦, to emphasise the expected
+relation with the /Gamma15gtexture. Band dispersions along high-
+symmetry directions are displayed in Figs. S2 and S3 of the
+014431-8
+
+COLOR SYMMETRY AND ALTERMAGNETICLIKE SPIN … PHYSICAL REVIEW B 112, 014431 (2025)
+FIG. 6. Spin texture at the Fermi surface on a plane cut perpen-
+dicularly to the (1,1,1) direction including the /Gamma1point shown with
+an outline of the BZ, calculated using spin-resolved DFT for the /Gamma15g
+(top) and /Gamma14g(bottom) phases with [(a), (c)] and without [(b), (d)]
+SOC. For /Gamma14g, the color wheel indicating in-plane spin directions was
+rotated by 90◦.T h e zcomponent, which is only present with SOC,
+is also indicated. For /Gamma14g, each band has a net magnetization. The z
+direction is along (1,1,1).
+Supplemental Material [ 37]. In the absence of SOC, the /Gamma15g
+[panel (a)] and /Gamma14g[panel (c)] are identical except for the 90◦
+rotation, and there is no spin-texture component along (1,1,1),
+as predicted by the CPG analysis at any tensor rank. The spintextures are also very similar to those in Fig. 5(see insets for
+the same cuts). By contrast, in the presence of SOC, the /Gamma1
+5g
+[panel (b)] and /Gamma14g[panel (d)] become signiﬁcantly different,
+and acquire a component along (1,1,1). In the case of /Gamma15g,t h i s
+component arises from a higher-rank tensor (see below) andaverages to zero for each band, while for /Gamma1
+4gthe additional
+/Lambda13term [Eq. ( 20)] yields a net spin polarization in each band,
+and an overall weak magnetization for the whole structure.
+To demonstrate the effectiveness of our tensorial approach,
+we ﬁtted the spin textures from DFT onto tensorial expansionsbased on CPG (no SOC) and MPG (with SOC) analysesfor both /Gamma1
+4gand/Gamma15g. To this end, we decomposed the spin
+textures of the equatorial sections [i.e., sections perpendicularto (111), as in Fig. 6] for the four bands that cross the Fermi
+surface into a radial component perpendicular to kand to
+(111), a tangential component in the equatorial plane and
+perpendicular to k, and an axial component parallel to (111),
+which is zero in the absence of SOC. (The bands are labeledfrom 0 to 3 as we move away from the /Gamma1point as shown in
+the SM [ 37], Fig. S4.) Note that, with DFT, the spin texture is
+calculated on constant-energy surfaces rather than at constant|k|. However, since constant-energy surfaces have at least the
+full symmetry of the XPG, textures will have an identicaltensorial expansion, though the coefﬁcients will be different.CPG tensor decompositions were performed up to tensorialrank 18, while MPG decompositions of the axial componentwere to rank 13 (we recall that MPG tensors are odd ranked,while CPG tensors are even ranked). The three tensorial com-ponents of the spin texture are linear combinations of sine andcosine functions of the azimuthal angle φin the equatorial
+plane. The coefﬁcients of this expansion (four for the radialand tangential components, three for the axial component)were ﬁtted to the corresponding components of the DFT spintextures. The results of these ﬁts are displayed graphically inFig.7for band 1. Corresponding representations for the other
+bands are in Figs. S5–S7 of the SM [ 37], while the functional
+form and ﬁtted parameters are displayed in Tables S1 and S2of the SM.
+In the absence of SOC, the radial and tangential com-
+ponents are swapped between /Gamma1
+5gand/Gamma14g, while the axial
+component is absent. This is completely consistent with theCG analysis, and, in particular, with the fact that textures for/Gamma1
+5gand/Gamma14gare rotated by 90◦in spin space. When SOC is
+switched on, a small axial component (approximately a factorof 10 smaller) appears for both /Gamma1
+5gand/Gamma14g. However, for /Gamma15g
+the axial spin polarization averaged over the Fermi surface is
+zero, while for /Gamma14gthere is a net spin polarization, consistent
+with weak ferromagnetism. Further details of the effects ofSOC on the spin-polarized band structures are evident fromthe band dispersions in Figs. S2 and S3 of the SM [ 37].
+Particularly noteworthy is the fact that the bands along the/Gamma1-Rdirection must, by symmetry, have polarization along
+the (111) direction. Hence, a small band splitting is observedonly for /Gamma1
+4gin the presence of SOC, where the band remains
+unsplit in all other cases (see insets).
+VIII. DISCUSSION AND CONCLUSIONS
+In this paper, “altermagneticlike” spin textures have been
+deﬁned as the components of the momentum-space spintexture that is invariant by global rotations in spin spacein the sense of Eq. ( 2). The tensorial forms of these tex-
+tures can be deﬁned consistently based on CPG analysis forboth noncollinear and collinear AFM structures, since thelatter are a special example of bicolor (black and white)symmetry. Strong FM textures (i.e., those present in a trueferro/ferrimagnet rather than a weak /canted FM) are also a
+special example, for which the color group is trivial (col-orless) [ 38]. In addition to altermagneticlike textures, the
+MPG of the crystal /magnetic structure will generally allow
+additional (“nonaltermagnetic”) spin textures in momentumspace, which will be speciﬁc to a given orientation of thespin system and will be absent in the absence of SOC.Altermagneticlike /ferromagnetic textures are allowed at some
+tensorial order for all MPGs that do not explicitly forbidk/−k-symmetric , time-reversal odd spin textures (i.e., those
+that do not contain the time-reversal operator or the productof inversion and time-reversal operators). The MPG /CPG
+pair deﬁnes which part of the full MPG texture (tabulatedto lowest tensorial order in Ref. [ 3]) is altermagneticlike,
+with the CPG also providing the “tensorial building blocks”(colored tensors) to reconstruct the full altermagneticlike tex-ture, once the exact real-space spin orientations are deﬁned.These building blocks can in principle be derived for allCPGs once and for all, though calculating them for a speciﬁcmagnetic structure is a simple exercise. We have demon-strated the CPG approach for three noncollinear magneticstructures: Mn
+3Ir(Ge,Si), Pb 2MnO 4, and Mn 3GaN. In the case
+of Mn 3GaN, using DFT we have also calculated the spin
+014431-9
+
+PAOLO G. RADAELLI AND GAUTAM GURUNG PHYSICAL REVIEW B 112, 014431 (2025)
+FIG. 7. Decomposition of the band-1 spin textures calculated with DFT (solid blocks) and with the corresponding tensorial ﬁts (dashed
+lines) for /Gamma15g(top row) and /Gamma14g(bottom row). Red /blue indicate positive /negative components (note the k/−ksymmetry). Panels (a) /(c) and
+(b)/(d) were calculated respectively with and without SOC (see text). The outer circles in the plots correspond to amplitudes for the
+radial, tangential, and axial components of [0.190,0.208,0.009] /[0.205,0.190,0.013] or (0.198,0.208) /(0.208,0.198) for the /Gamma15g//Gamma14gphase,
+respectively, with [ ] or without ( ) SOC, respectively.
+textures for two different magnetic phases ( /Gamma15gand/Gamma14g) with
+and without SOC, and demonstrated that they are entirelyconsistent with the predictions of MPG /CPG theory. We also
+ﬁnd that the tensorial decomposition of the DFT textures isin very good agreement with CPG (no SOC) and MPG (withSOC) predictions, conﬁrming the soundness of this method.
+Beyond the results reported in this paper, we remark that
+CPG/CSG symmetry can also be deﬁned for p-wave magnets
+[5] and other systems (e.g., based on triangular lattices) [ 6],
+which allow k/−k-antisymmetric , time-reversal even spin
+textures in momentum space, and it is expected that those spintextures will also be constrained by CSG symmetry. However,our tensorial analysis will need to be modiﬁed to deal withsuch systems [ 39].
+ACKNOWLEDGMENTS
+The authors would like to acknowledge the use of the
+University of Oxford Advanced Research Computing (ARC)facility [ 40] in carrying out this work.
+DATA A VAILABILITY
+The data that support the ﬁndings of this article are openly
+available [ 41].
+APPENDIX: COLOR SYMMETRY, REPRESENTATIONS,
+AND EXCHANGE MULTIPLETS
+There is a close relation between the description of mag-
+netic structures in terms of CGs and the theory of exchangemultiplets [ 22], which classiﬁes magnetic structures in terms
+of irreducible representations ( irreps ) of the symmetry group
+of a Hamiltonian that only involves symmetric exchange andis therefore invariant by rotation in spin space. The symmetryof this Hamiltonian is higher than the crystal symmetry; thus,in general, several irreps of the space group will be combinedinto so-called “exchange multiplets” and may be activatedsimultaneously at a magnetic phase transition. Exchange mul-
+tiplets are constructed as tensor products of a single irrep ofthe space group that is contained in the full permutational(scalar) representation of the equivalent magnetic sites (withdimensionality equal to the number of sites), times the (gen-erally reducible) axial-vector representation (see Ref. [ 22]).
+By contrast, the set of all possible magnetic structures with
+a given CG and for a given set of equivalent magnetic sitesis constructed as the tensor product of the “color-permutingrepresentation” times the axial-vector representation. In turn,the color-permuting representation is the permutational rep-resentation of the magnetic sites restricted to the subspacedeﬁned by a one-color basis set, where all the sites with agiven color are assigned the number 1, while all the othersites are assigned 0. This basis set can be easily constructedprojectively from the one-site basis of the permutational rep-resentation. This is done from the left-coset decomposition ofH
+/primeinG:
+G=H/prime+g1◦H/prime+g2◦H/prime+··· . (A1)
+Letbbe an element of the one-site basis set of the permu-
+tational representation of the magnetic sites, such that one ofthe sites is associated with the number 1 and all the otherswith 0. Let h
+/prime
+i,i=1,..., n, be all the elements of H/prime. Then
+the elements of the one-color basis set, say bR,bY,bG,e t c . ,a r e
+deﬁned as
+bR=1
+nn/summationdisplay
+i=1h/prime
+i[b],
+bY=1
+nn/summationdisplay
+i=1g1◦h/prime
+i[b],
+bG=1
+nn/summationdisplay
+i=1g2◦h/prime
+i[b], (A2)
+···.
+014431-10
+
+COLOR SYMMETRY AND ALTERMAGNETICLIKE SPIN … PHYSICAL REVIEW B 112, 014431 (2025)
+One can easily see that this basis is in accord with the
+deﬁnition of the CGs, whereby “red” sites are those whereb
+Ris nonzero, etc. H/primebrings red sites into red sites, g1◦H/prime
+brings red sites into yellow sites, etc. The CG also deﬁnes
+the representation of Gonto the linear space deﬁned by the
+one-color basis set, since the transformation matrices can bewritten out explicitly.
+A basis set for the linear space of all magnetic structures
+with a given color group is
+(b
+Rˆi,bRˆj,bRˆk,bYˆi,bYˆj,bYˆk,bGˆi,bGˆj,bGˆk,...). (A3)The generic elements of this linear space are
+bRv1+bYv2+bGv3+··· , (A4)
+where v1,v2, etc., are generic linear combinations of the unit
+vectors ˆi,ˆj, and ˆk. This corresponds to assigning a generic
+vector to each of the colors, exactly as we anticipated.
+Finally, since the color-permuting representation, with di-
+mensionality equal to the number of colors, is generallyreducible , it follows that each CG describes several exchange
+multiplets.
+[1] L. Šmejkal, J. Sinova, and T. Jungwirth, Beyond conventional
+ferromagnetism and antiferromagnetism: A phase with nonrel-ativistic spin and crystal rotation symmetry, P h y s .R e v .X 12,
+031042 (2022) .
+[2] L. Šmejkal, J. Sinova, and T. Jungwirth, Emerging re-
+search landscape of altermagnetism, P h y s .R e v .X 12, 040501
+(2022) .
+[3] P. G. Radaelli, Tensorial approach to altermagnetism, Phys.
+Rev. B 110, 214428 (2024) .
+[4] S. W. Cheong and F. T. Huang, Altermagnetism with non-
+collinear spins, npj Quantum Mater. 9, 13 (2024) .
+[5] A. B. Hellenes, T. Jungwirth, R. Jaeschke-Ubiergo, A.
+Chakraborty, J. Sinova, and L. Šmejkal, p-wave magnets,
+arXiv:2309.01607 .
+[6] S. Hayami, Y . Yanagi, and H. Kusunose, Spontaneous an-
+tisymmetric spin splitting in noncollinear antiferromagnetswithout spin-orbit coupling, Phys. Rev. B 101, 220403(R)
+(2020) .
+[7] Here “ k/−ksymmetric /antisymmetric ” means that the spin
+texture, deﬁned as s
+nk=/angbracketleft/Psi1nk|σ|/Psi1nk/angbracketright(see below), is the
+same/changes sign by exchanging kand−k. “Time-reversal
+odd/even” means that the spin texture in the time-reversedmagnetic domain (i.e., the domain obtained by ﬂipping all themagnetic moments) is opposite/the same for a given k.
+[8] G. Dresselhaus, Spin-orbit coupling effects in zinc blende struc-
+tures, Phys. Rev. 100, 580 (1955) .
+[9] E. I. Rashba and V . I. Sheka, Symmetry of energy bands in
+crystals of Wurtzite type II. Symmetry of bands with spin-orbitinteraction included, Fiz. Tverd. Tela: Collected Papers 2,6 2
+(1959) [ New. J. Phys. 17, 050202 (2015)] .
+[10] J. Železný, Y . Zhang, C. Felser, and B. Yan, Spin-polarized
+current in noncollinear antiferromagnets, Phys. Rev. Lett. 119,
+187204 (2017) .
+[11] J. Sticht, K. H. Höck, and J. Kübler, Non-collinear itinerant
+magnetism: The case of Mn
+3Sn,J. Phys.: Condens. Matter 1,
+8155 (1989) .
+[12] As explained in the remainder, the CG approach can be
+employed to describe the magnetic structures of k/−k-
+antisymmetric magnets, but colored tensors as deﬁned herewould require some modiﬁcations. For this reason, we willexclude k/−k-antisymmetric magnets from our treatment.
+[13] B. Brekke, P. Sukhachov, H. G. Giil, A. Brataas, and J. Linder,
+Minimal models and transport properties of unconventional p-
+wave magnets, P h y s .R e v .L e t t . 133, 236703 (2024) .
+[14] D. Harker, The three-colored three-dimensional space groups,
+Acta Crystallogr. Sect. A 37, 286 (1981) .[15] J. Sivardière, Sous-groupes des groupes d’espace et groupes à
+trois couleurs, Acta Crystallogr. Sect. A 40, 573 (1984) .
+[16] R. L. Roth, Coloring p4mwith two, four, and six colors, Acta
+Crystallogr. Sect. A 41, 484 (1985) .
+[17] J. Sivardière, Groupes d’espace à quatre et six couleurs, Acta
+Crystallogr. 44, 735 (1988) .
+[18] J. N. Kotzev and D. A. Alexandrova, Full tables of colour space
+groups with colour-preserving translations, Acta Crystallogr.
+Sect. A 44, 1082 (1988) .
+[19] D. B. Litvin, J. N. Kotzev, and J. L. Birman, Physical applica-
+tions of crystallographic color groups: Landau theory of phasetransitions, P h y s .R e v .B 26, 6947 (1982) .
+[20] Z. Jirák, Group-theoretical approach to orbital ordering in crys-
+tals with E
+gandT2gions, P h y s .R e v .B 46, 8725 (1992) .
+[21] E. F. Bertaut, Representation analysis of magnetic structures,
+Acta Crystallogr. Sect. A 24, 217 (1968) .
+[22] Y . A. Izyumov, Exchange multiplets in the theory of magnetic
+structures of crystals, J. Magn. Magn. Mater. 15-18 , 497 (1980) .
+[23] D. B. Litvin, Spin point groups, Acta Crystallogr. Sect. A 33,
+279 (1977) .
+[24] T. Eriksson, L. Bergqvist, P. Nordblad, O. Eriksson, and
+Y . Andersson, Structural and magnetic characterization ofMn
+3IrGe and Mn 3Ir(Si1−xGex): Experiments and theory,
+J. Solid State Chem. 177, 4058 (2004) .
+[25] T. Eriksson, R. Lizárraga, S. Felton, L. Bergqvist, Y . Andersson,
+P. Nordblad, and O. Eriksson, Crystal and magnetic structure ofMn
+3IrSi, P h y s .R e v .B 69, 054422 (2004) .
+[26] M. Hu, O. Janson, C. Felser, P. McClarty, J. van den Brink, and
+M. G. Vergniory, Spin Hall and Edelstein effects in novel chiralnoncollinear altermagnets, arXiv:2410.17993 .
+[27] S. A. Kimber and J. P. Attﬁeld, Magnetic order in acentric
+Pb
+2MnO 4,J. Mater. Chem. 17, 4885 (2007) .
+[28] D. C. Kakarla, H. C. Wu, D. J. Hsieh, P. J. Sun, G. J. Dai, J. Y .
+Lin, J. L. Her, Y . H. Matsuda, L. Z. Deng, M. Gooch, C. W. Chu,and H. D. Yang, Metamagnetic transitions and magnetoelectriccoupling in acentric and nonpolar Pb
+2MnO 4,Phys. Rev. B 99,
+195129 (2019) .
+[29] S.-W. Cheong and F.-T. Huang, Kinetomagnetism and altermag-
+netism, arXiv:2503.16277 .
+[30] E. F. Bertaut, D. Fruchart, J. P. Bouchaud, and R. Fruchart,
+Diffraction neutronique de Mn 3GaN, Solid State Commun. 6,
+251 (1968) .
+[31] K. Shi, Y . Sun, J. Yan, S. Deng, L. Wang, H. Wu, P. Hu, H.
+Lu, M. I. Malik, Q. Huang, and C. Wang, Baromagnetic effectin antiperovskite Mn
+3Ga0.95N0.94by neutron powder diffraction
+analysis, Adv. Mater. 28, 3761 (2016) .
+014431-11
+
+PAOLO G. RADAELLI AND GAUTAM GURUNG PHYSICAL REVIEW B 112, 014431 (2025)
+[32] T. Nan, C. X. Quintela, J. Irwin, G. Gurung, D. F. Shao, J.
+Gibbons, N. Campbell, K. Song, S. Y . Choi, L. Guo, R. D.Johnson, P. Manuel, R. V . Chopdekar, I. Hallsteinsen, T. Tybell,P. J. Ryan, J. W. Kim, Y . Choi, P. G. Radaelli, D. C. Ralph et al. ,
+Controlling spin current polarization through non-collinear an-tiferromagnetism, Nat. Commun. 11, 4671 (2020) .
+[33] H. K. Singh, I. Samathrakis, N. M. Fortunato, J. Zemen,
+C. Shen, O. Gutﬂeisch, and H. Zhang, Multifunctional an-tiperovskites driven by strong magnetostructural coupling, npj
+Comput. Mater. 7, 98 (2021) .
+[34] Note that the /Gamma1
+4gmagnetic structure is the same as for the
+compound Mn 3Ir reported in Ref. [ 10]. The schematic spin
+texture reported in their Fig. 3is very similar to the one we
+calculate here.
+[35] P. Giannozzi, O. Andreussi, T. Brumme, O. Bunau, M.
+Buongiorno Nardelli, M. Calandra, R. Car, C. Cavazzoni, D.Ceresoli, M. Cococcioni, N. Colonna, I. Carnimeo, A. DalCorso, S. De Gironcoli, P. Delugas, R. A. Distasio, A. Ferretti,A. Floris, G. Fratesi, G. Fugallo et al. , Advanced capabilities
+for materials modelling with Quantum ESPRESSO, J. Phys.:
+Condens. Matter 29, 465901 (2017) .
+[36] J. P. Perdew, K. Burke, and M. Ernzerhof, Generalized gradient
+approximation made simple, P h y s .R e v .L e t t . 77, 3865 (1996) .[37] See Supplemental Material at http://link.aps.org/supplemental/
+10.1103/r34k-xjpx for I. Further discussion of the relation be-
+tween color groups and spin groups; II. Spin-resolved banddispersions of Mn
+3GaN; III. Fermi surfaces of Mn 3GaN; IV .
+Decompositions of the Fermi surfaces (Bands 0, 2, 3) spintextures of Mn
+3GaN onto tensorial expansions.
+[38] Note that the net magnetization in the absence of SOC is iden-
+tically zero for collinear altermagnets and also for noncollinear
+magnets where each color has a corresponding anticolor, sincethe magnetization of anticolored sublattices cancels.
+[39] Very brieﬂy, magnets with k/−kantisymmetric splitting are
+characterized by bond-type multipolar ordering [ 6], and the
+staggered magnetization (in the collinear case) or the one-coloraxial unit vectors (noncollinear case) need to be replaced in thetensorial treatment by the cross product S
+1×S2, where sites 1
+and 2 are those connected by the speciﬁc bond. This approachwill be fully described in a future paper.
+[40] A. Richards, University of Oxford Advanced Research Comput-
+ing, Zenodo (2015), see https://doi.org/10.5281/zenodo.22558 .
+[41] P. Radaelli and G. Gurung, Data linked to the publication “Color
+symmetry and altermagneticlike spin textures in noncollinearantiferromagnets” (University of Oxford, 2025), see https://dx.
+doi.org/10.5287/ora-ng7pyddap .
+014431-12
