@@ -470,7 +470,7 @@ def compute_no_soc_tensor_with_permutations(
                 if sub_rank <= 0:
                     e_trans = np.array(e, dtype=float)
                 else:
-                    e_trans = _apply_op_to_tensor(e, sub_rank, R)
+                    e_trans = _apply_op_to_tensor(e, sub_rank, R.tolist() if isinstance(R, np.ndarray) else R)
                 # Compute local dipole for this site: S_k = tr * R @ S_1
                 spin_site = tr * R @ ref_spin_vec
                 # Form tensor product: electric (rank n-1) x local dipole (rank 1)
@@ -800,17 +800,17 @@ def _parse_coord_expr(expr: str, x: float, y: float, z: float) -> float:
     s = s.replace("x", f"({x})").replace("y", f"({y})").replace("z", f"({z})")
     # allow only safe chars
     if not re.fullmatch(r"[0-9\.\+\-\*\/\(\)\s]+", s):
-        # fallback: treat as 0
         return 0.0
     try:
         return float(eval(s, {"__builtins__": {}}, {}))
     except Exception:
-        return 0.0
+        # Remove fallback, just raise
+        raise
 
 def _parse_coord_triplet(coord_str: str, x: float, y: float, z: float) -> List[float]:
     parts = [p.strip() for p in coord_str.split(",")]
-    while len(parts) < 3:
-        parts.append("0")
+    if len(parts) != 3:
+        raise ValueError("Coordinate triplet must have exactly 3 parts")
     return [_parse_coord_expr(parts[0], x, y, z),
             _parse_coord_expr(parts[1], x, y, z),
             _parse_coord_expr(parts[2], x, y, z)]
@@ -818,9 +818,7 @@ def _parse_coord_triplet(coord_str: str, x: float, y: float, z: float) -> List[f
 def _frac01(v: float) -> float:
     # normalize to [0,1)
     v = v - math.floor(v + 1e-6)
-    if abs(v - 1.0) < 1e-6:
-        v = 0.0
-    return v
+    return 0.0 if abs(v - 1.0) < 1e-6 else v
 
 def get_site_ops(group: Dict[str, Any], wyckoff: Optional[Dict[str, Any]], eps: float = 1e-4) -> List[Dict[str, Any]]:
     """
@@ -947,6 +945,23 @@ def compute_results(
                         continue
                     site0 = arr.reshape((n_sites, dim_site))[0]
                     basis.append(site0.tolist())
+        
+        if use_cartesian_ops:
+            try:
+                # `lattice` is the validated np.array of the lattice_matrix
+                M_kron = np.array(lattice)
+                for _ in range(r - 1):
+                    M_kron = np.kron(M_kron, lattice)
+                
+                transformed_basis = []
+                for b_vec in basis:
+                    cart_vec = M_kron @ np.array(b_vec)
+                    transformed_basis.append(cart_vec.tolist())
+                basis = transformed_basis
+            except Exception:
+                # if something fails, just return crystal basis
+                pass
+
         ranks.append({
             "rank": r,
             "basis_count": len(basis),

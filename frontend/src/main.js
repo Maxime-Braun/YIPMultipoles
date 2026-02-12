@@ -310,8 +310,8 @@ window.OrbitControls = OrbitControls;
                 .filter(site => site && site.label && magneticSet.has(String(site.label).toLowerCase()))
                 .map(site => site.label || site[0] || "");
             } else {
-              // Fallback: if no magnetic labels present, keep previous behaviour
-              MAGNETIC_OCCUPIED_SITES = MCIF_ATOM_SITES.map(site => site.label || site[0] || "");
+              // If no magnetic labels present, return empty or handle explicitly
+              MAGNETIC_OCCUPIED_SITES = [];
             }
             return Promise.resolve(MAGNETIC_OCCUPIED_SITES);
           }
@@ -394,7 +394,7 @@ window.OrbitControls = OrbitControls;
               window.MCIF_ATOM_SITES = MCIF_ATOM_SITES;
               console.debug('[DEBUG] Attributed wyckoff to magnetic atoms (no SOC, using buildMcifAtomSitesWithWyckoff):', MCIF_ATOM_SITES);
             } else if ((!MCIF_ATOM_SITES || MCIF_ATOM_SITES.length === 0) && MCIF_ATOM_COORDS && MCIF_ATOM_COORDS.length && MCIF_MAGNETIC_LABELS && MCIF_MAGNETIC_LABELS.length) {
-              // Fallback: original logic for other cases
+              // If no MCIF_ATOM_SITES, attribute only if magnetic labels match
               const magneticSet = new Set(MCIF_MAGNETIC_LABELS.map(l => String(l).toLowerCase()));
               MCIF_ATOM_SITES = MCIF_ATOM_COORDS
                 .filter(site => site.label && magneticSet.has(String(site.label).toLowerCase()))
@@ -636,9 +636,7 @@ const GLOBAL_EXPR_LABELS_BY_KEY = {};
 
         
 // Load Data (moved to backend API)
-// Allow overriding the API base from the page (useful for gh-pages deploys):
-// set `window.__API_BASE__ = 'https://your-backend.example.com'` in index.html before the bundle.
-const API_BASE = (window.__API_BASE__ || import.meta.env.VITE_API_BASE || (window.location.origin + "/api"));
+const API_BASE = (import.meta.env.VITE_API_BASE || (window.location.origin + "/api"));
         async function fetchJSON(url, options) {
             const res = await fetch(url, options);
             if (!res.ok) {

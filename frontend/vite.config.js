@@ -2,7 +2,6 @@ import { defineConfig } from "vite";
 import path from "path";
 
 export default defineConfig({
-  // ✅ Force Vite root to be THIS folder (frontend/)
   root: __dirname,
 
   server: {
@@ -16,7 +15,6 @@ export default defineConfig({
     },
   },
 
-  // ✅ Build output goes to project-root/dist
   build: {
     outDir: path.resolve(__dirname, "../dist"),
     emptyOutDir: true,
